@@ -21,15 +21,40 @@ export function verifyPassword(password: string, stored: string): boolean {
   return timingSafeEqual(expected, actual);
 }
 
+/**
+ * Enforces a baseline password policy: at least 8 chars, contains a digit
+ * and a letter. Returns null when valid, or an error string for the client.
+ */
+export function validatePasswordStrength(password: string): string | null {
+  if (password.length < 8) return "Password must be at least 8 characters";
+  if (!/[A-Za-z]/.test(password)) return "Password must contain a letter";
+  if (!/[0-9]/.test(password)) return "Password must contain a number";
+  return null;
+}
+
 export async function createSessionCookie(res: Response, userId: number): Promise<void> {
   const token = randomBytes(32).toString("hex");
   await db.insert(sessionsTable).values({ token, userId });
   res.cookie(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
+    secure: process.env["NODE_ENV"] === "production",
     maxAge: SESSION_MAX_AGE_MS,
     path: "/",
   });
+}
+
+/**
+ * Rotates the current session token for the authenticated request — call
+ * after login, signup, and any privilege-relevant change to defeat session
+ * fixation. The old session row is deleted and a fresh cookie is set.
+ */
+export async function rotateSession(req: Request, res: Response, userId: number): Promise<void> {
+  const oldToken = req.cookies?.[SESSION_COOKIE];
+  if (oldToken) {
+    await db.delete(sessionsTable).where(eq(sessionsTable.token, oldToken));
+  }
+  await createSessionCookie(res, userId);
 }
 
 export async function destroySession(req: Request, res: Response): Promise<void> {

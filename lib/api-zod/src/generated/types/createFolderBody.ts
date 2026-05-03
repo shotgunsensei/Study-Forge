@@ -7,6 +7,11 @@
  */
 
 export interface CreateFolderBody {
+  /**
+   * @minLength 1
+   * @maxLength 80
+   */
   name: string;
+  /** @maxLength 32 */
   color?: string;
 }

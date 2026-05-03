@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, inArray } from "drizzle-orm";
+import { eq, desc, inArray, sql } from "drizzle-orm";
 import {
   db,
   studySetsTable,
@@ -12,6 +12,7 @@ import {
 import { requireAuth } from "../lib/auth";
 import { currentMonthKey, limitsFor, planOf } from "../lib/plans";
 import { studySetRowToSummary } from "../lib/studySetService";
+import { getStreakAndActivity } from "../lib/streakService";
 
 const router: IRouter = Router();
 
@@ -29,18 +30,32 @@ router.get("/dashboard", requireAuth, async (req, res): Promise<void> => {
     .orderBy(desc(studySetsTable.updatedAt));
 
   const setIds = sets.map((s) => s.id);
-  const flashcards = setIds.length > 0
-    ? await db.select().from(flashcardsTable).where(inArray(flashcardsTable.studySetId, setIds))
-    : [];
-  const quiz = setIds.length > 0
-    ? await db.select().from(quizQuestionsTable).where(inArray(quizQuestionsTable.studySetId, setIds))
-    : [];
-  const cardCounts = new Map<number, number>();
-  for (const c of flashcards) cardCounts.set(c.studySetId, (cardCounts.get(c.studySetId) ?? 0) + 1);
-  const quizCounts = new Map<number, number>();
-  for (const q of quiz) quizCounts.set(q.studySetId, (quizCounts.get(q.studySetId) ?? 0) + 1);
 
-  const flashcardsCount = flashcards.length;
+  // SQL aggregate counts — no in-memory N+1 walk.
+  const cardCountRows = setIds.length
+    ? await db
+        .select({
+          studySetId: flashcardsTable.studySetId,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(flashcardsTable)
+        .where(inArray(flashcardsTable.studySetId, setIds))
+        .groupBy(flashcardsTable.studySetId)
+    : [];
+  const quizCountRows = setIds.length
+    ? await db
+        .select({
+          studySetId: quizQuestionsTable.studySetId,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(quizQuestionsTable)
+        .where(inArray(quizQuestionsTable.studySetId, setIds))
+        .groupBy(quizQuestionsTable.studySetId)
+    : [];
+  const cardCounts = new Map(cardCountRows.map((r) => [r.studySetId, Number(r.count)]));
+  const quizCounts = new Map(quizCountRows.map((r) => [r.studySetId, Number(r.count)]));
+  const flashcardsCount = [...cardCounts.values()].reduce((a, b) => a + b, 0);
+
   const recent = sets
     .slice(0, 6)
     .map((s) => studySetRowToSummary(s, cardCounts.get(s.id) ?? 0, quizCounts.get(s.id) ?? 0));
@@ -138,6 +153,8 @@ router.get("/dashboard", requireAuth, async (req, res): Promise<void> => {
   const quizThisMonth =
     user.quizAttemptsMonthKey === monthKey ? user.quizAttemptsThisMonth : 0;
 
+  const { streak, activity, scoreHistory } = await getStreakAndActivity(user.id);
+
   res.json({
     studySetsCount: sets.length,
     flashcardsCount,
@@ -154,6 +171,9 @@ router.get("/dashboard", requireAuth, async (req, res): Promise<void> => {
       quizAttemptsThisMonth: quizThisMonth,
       quizAttemptsLimit: limits.maxQuizAttemptsPerMonth,
     },
+    streak,
+    activity,
+    scoreHistory,
   });
 });
 

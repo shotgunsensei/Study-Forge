@@ -3,11 +3,12 @@ import { eq } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 import { LoginBody, SignupBody, UpdateProfileBody } from "@workspace/api-zod";
 import {
-  createSessionCookie,
   destroySession,
   getCurrentUser,
   hashPassword,
   requireAuth,
+  rotateSession,
+  validatePasswordStrength,
   verifyPassword,
 } from "../lib/auth";
 import { deleteUserCascade } from "../lib/userCleanup";
@@ -51,7 +52,8 @@ router.post("/auth/login", authLimiter, async (req, res): Promise<void> => {
     res.status(401).json({ error: "Invalid email or password" });
     return;
   }
-  await createSessionCookie(res, user.id);
+  // Rotate token on successful login to defeat session fixation.
+  await rotateSession(req, res, user.id);
   res.json(userToSession(user));
 });
 
@@ -62,8 +64,9 @@ router.post("/auth/signup", authLimiter, async (req, res): Promise<void> => {
     return;
   }
   const email = parsed.data.email.toLowerCase().trim();
-  if (parsed.data.password.length < 8) {
-    res.status(400).json({ error: "Password must be at least 8 characters" });
+  const passwordError = validatePasswordStrength(parsed.data.password);
+  if (passwordError) {
+    res.status(400).json({ error: passwordError });
     return;
   }
   const [existing] = await db.select().from(usersTable).where(eq(usersTable.email, email));
@@ -81,7 +84,7 @@ router.post("/auth/signup", authLimiter, async (req, res): Promise<void> => {
       plan: "free",
     })
     .returning();
-  await createSessionCookie(res, user.id);
+  await rotateSession(req, res, user.id);
   res.json(userToSession(user));
 });
 

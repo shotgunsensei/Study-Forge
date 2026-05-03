@@ -56,10 +56,17 @@ export const LoginResponse = zod.object({
 /**
  * @summary Create a new account
  */
+export const signupBodyEmailMax = 254;
+
+export const signupBodyPasswordMin = 8;
+export const signupBodyPasswordMax = 200;
+
+export const signupBodyNameMax = 80;
+
 export const SignupBody = zod.object({
-  email: zod.string(),
-  password: zod.string(),
-  name: zod.string(),
+  email: zod.string().email().max(signupBodyEmailMax),
+  password: zod.string().min(signupBodyPasswordMin).max(signupBodyPasswordMax),
+  name: zod.string().min(1).max(signupBodyNameMax),
 });
 
 export const SignupResponse = zod.object({
@@ -193,6 +200,23 @@ export const GetDashboardResponse = zod.object({
     quizAttemptsThisMonth: zod.number(),
     quizAttemptsLimit: zod.number().nullable(),
   }),
+  streak: zod.object({
+    current: zod.number(),
+    longest: zod.number(),
+    activeToday: zod.boolean(),
+  }),
+  activity: zod.array(
+    zod.object({
+      date: zod.string(),
+      count: zod.number(),
+    }),
+  ),
+  scoreHistory: zod.array(
+    zod.object({
+      date: zod.string(),
+      score: zod.number(),
+    }),
+  ),
 });
 
 export const ListStudySetsQueryParams = zod.object({
@@ -216,14 +240,24 @@ export const ListStudySetsResponseItem = zod.object({
 });
 export const ListStudySetsResponse = zod.array(ListStudySetsResponseItem);
 
+export const createStudySetBodyTitleMax = 200;
+
+export const createStudySetBodySubjectMax = 100;
+
+export const createStudySetBodyCourseMax = 200;
+
+export const createStudySetBodyLearningGoalMax = 500;
+
+export const createStudySetBodyNotesMax = 50000;
+
 export const CreateStudySetBody = zod.object({
-  title: zod.string(),
-  subject: zod.string(),
-  course: zod.string().nullish(),
+  title: zod.string().min(1).max(createStudySetBodyTitleMax),
+  subject: zod.string().min(1).max(createStudySetBodySubjectMax),
+  course: zod.string().max(createStudySetBodyCourseMax).nullish(),
   difficulty: zod.enum(["easy", "medium", "hard"]),
-  learningGoal: zod.string().nullish(),
+  learningGoal: zod.string().max(createStudySetBodyLearningGoalMax).nullish(),
   examDate: zod.string().nullish(),
-  notes: zod.string(),
+  notes: zod.string().min(1).max(createStudySetBodyNotesMax),
 });
 
 export const GetStudySetParams = zod.object({
@@ -303,12 +337,20 @@ export const UpdateStudySetParams = zod.object({
   id: zod.coerce.number(),
 });
 
+export const updateStudySetBodyTitleMax = 200;
+
+export const updateStudySetBodySubjectMax = 100;
+
+export const updateStudySetBodyCourseMax = 200;
+
+export const updateStudySetBodyLearningGoalMax = 500;
+
 export const UpdateStudySetBody = zod.object({
-  title: zod.string().optional(),
-  subject: zod.string().optional(),
-  course: zod.string().nullish(),
-  difficulty: zod.string().optional(),
-  learningGoal: zod.string().nullish(),
+  title: zod.string().min(1).max(updateStudySetBodyTitleMax).optional(),
+  subject: zod.string().min(1).max(updateStudySetBodySubjectMax).optional(),
+  course: zod.string().max(updateStudySetBodyCourseMax).nullish(),
+  difficulty: zod.enum(["easy", "medium", "hard"]).optional(),
+  learningGoal: zod.string().max(updateStudySetBodyLearningGoalMax).nullish(),
   examDate: zod.string().nullish(),
   folderId: zod.number().nullish(),
 });
@@ -564,9 +606,13 @@ export const ListFoldersResponseItem = zod.object({
 });
 export const ListFoldersResponse = zod.array(ListFoldersResponseItem);
 
+export const createFolderBodyNameMax = 80;
+
+export const createFolderBodyColorMax = 32;
+
 export const CreateFolderBody = zod.object({
-  name: zod.string(),
-  color: zod.string().optional(),
+  name: zod.string().min(1).max(createFolderBodyNameMax),
+  color: zod.string().max(createFolderBodyColorMax).optional(),
 });
 
 export const DeleteFolderParams = zod.object({

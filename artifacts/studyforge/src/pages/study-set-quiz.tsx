@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, memo, useCallback } from "react";
 import { useGetStudySet, getGetStudySetQueryKey, useSubmitQuizAttempt, useListQuizAttempts, getListQuizAttemptsQueryKey } from "@workspace/api-client-react";
 import { useDocumentMeta } from "@/hooks/use-document-meta";
 import { useRoute, Link } from "wouter";
@@ -9,6 +9,44 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { LimitModal } from "@/components/limit-modal";
+
+interface QuizQuestionCardProps {
+  q: { id: number; question: string; choices: string[] };
+  qIndex: number;
+  selectedIndex: number | undefined;
+  onSelect: (questionId: number, choiceIndex: number) => void;
+}
+
+// Memoized so updating answers for one question doesn't re-render every other
+// card in the list — noticeable on long quizzes.
+const QuizQuestionCard = memo(function QuizQuestionCard({ q, qIndex, selectedIndex, onSelect }: QuizQuestionCardProps) {
+  return (
+    <Card id={`q-${q.id}`}>
+      <CardHeader>
+        <CardTitle className="text-lg leading-snug">
+          <span className="text-muted-foreground mr-2">{qIndex + 1}.</span>
+          {q.question}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {q.choices.map((choice, cIndex) => {
+          const isSelected = selectedIndex === cIndex;
+          return (
+            <Button
+              key={cIndex}
+              variant={isSelected ? "default" : "outline"}
+              className={`w-full justify-start h-auto py-3 px-4 text-left whitespace-normal ${isSelected ? "bg-primary text-primary-foreground border-primary" : "hover:bg-accent/5"}`}
+              onClick={() => onSelect(q.id, cIndex)}
+            >
+              <span className="mr-3 font-medium opacity-50">{String.fromCharCode(65 + cIndex)}.</span>
+              {choice}
+            </Button>
+          );
+        })}
+      </CardContent>
+    </Card>
+  );
+});
 
 export default function StudySetQuiz() {
   const [, params] = useRoute("/sets/:id/quiz");
@@ -26,6 +64,10 @@ export default function StudySetQuiz() {
   const [answers, setAnswers] = useState<Record<number, number>>({});
   const [result, setResult] = useState<any>(null);
   const [limitModal, setLimitModal] = useState({ isOpen: false, feature: "", currentPlan: "", upgradeTo: "" });
+
+  const onSelect = useCallback((questionId: number, choiceIndex: number) => {
+    setAnswers((prev) => ({ ...prev, [questionId]: choiceIndex }));
+  }, []);
 
   if (isLoading) {
     return <div className="p-8 space-y-4"><Skeleton className="h-8 w-1/3" /><Skeleton className="h-64" /></div>;
@@ -156,30 +198,13 @@ export default function StudySetQuiz() {
 
       <div className="space-y-8 mt-8">
         {questions.map((q, qIndex) => (
-          <Card key={q.id} id={`q-${q.id}`}>
-            <CardHeader>
-              <CardTitle className="text-lg leading-snug">
-                <span className="text-muted-foreground mr-2">{qIndex + 1}.</span>
-                {q.question}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {q.choices.map((choice, cIndex) => {
-                const isSelected = answers[q.id] === cIndex;
-                return (
-                  <Button
-                    key={cIndex}
-                    variant={isSelected ? "default" : "outline"}
-                    className={`w-full justify-start h-auto py-3 px-4 text-left whitespace-normal ${isSelected ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-accent/5'}`}
-                    onClick={() => setAnswers({ ...answers, [q.id]: cIndex })}
-                  >
-                    <span className="mr-3 font-medium opacity-50">{String.fromCharCode(65 + cIndex)}.</span>
-                    {choice}
-                  </Button>
-                )
-              })}
-            </CardContent>
-          </Card>
+          <QuizQuestionCard
+            key={q.id}
+            q={q}
+            qIndex={qIndex}
+            selectedIndex={answers[q.id]}
+            onSelect={onSelect}
+          />
         ))}
       </div>
 

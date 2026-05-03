@@ -5,8 +5,11 @@
  * StudyForge AI API
  * OpenAPI spec version: 0.1.0
  */
+import type { DailyActivity } from "./dailyActivity";
 import type { ExamCountdown } from "./examCountdown";
 import type { PlanUsage } from "./planUsage";
+import type { ScorePoint } from "./scorePoint";
+import type { StreakInfo } from "./streakInfo";
 import type { StudySetSummary } from "./studySetSummary";
 import type { TodaySession } from "./todaySession";
 import type { WeakArea } from "./weakArea";
@@ -22,4 +25,7 @@ export interface DashboardSummary {
   weakAreas: WeakArea[];
   plan: string;
   planUsage: PlanUsage;
+  streak: StreakInfo;
+  activity: DailyActivity[];
+  scoreHistory: ScorePoint[];
 }

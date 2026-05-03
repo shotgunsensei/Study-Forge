@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { Brain, FileText, Target, Plus, AlertCircle, Sparkles, ArrowRight, BookOpen, Calendar } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { StreakWidget } from "@/components/streak-widget";
+import { ScoreTrend } from "@/components/score-trend";
 
 export default function Dashboard() {
   useDocumentMeta("Dashboard");
@@ -126,6 +128,17 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {!isNewUser && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <StreakWidget
+            current={dashboard.streak?.current ?? 0}
+            longest={dashboard.streak?.longest ?? 0}
+            activity={dashboard.activity ?? []}
+          />
+          <ScoreTrend data={dashboard.scoreHistory ?? []} />
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="space-y-4">

@@ -11,6 +11,7 @@ import {
 import { SubmitQuizAttemptBody, ToggleStudySessionBody } from "@workspace/api-zod";
 import { requireAuth } from "../lib/auth";
 import { currentMonthKey, limitErrorBody, limitsFor, planOf } from "../lib/plans";
+import { recordActivity } from "../lib/streakService";
 
 const router: IRouter = Router();
 
@@ -158,6 +159,8 @@ router.post(
         .where(eq(studySetsTable.id, id));
     }
 
+    recordActivity(user.id).catch((err) => req.log.warn({ err }, "recordActivity failed"));
+
     res.status(201).json({
       attempt: {
         id: attempt.id,
@@ -207,6 +210,9 @@ router.patch(
     if (!updated) {
       res.status(404).json({ error: "Session not found" });
       return;
+    }
+    if (parsed.data.completed) {
+      recordActivity(user.id).catch((err) => req.log.warn({ err }, "recordActivity failed"));
     }
     res.json({
       id: updated.id,

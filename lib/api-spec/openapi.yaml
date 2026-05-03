@@ -651,9 +651,9 @@ components:
     SignupBody:
       type: object
       properties:
-        email: { type: string }
-        password: { type: string }
-        name: { type: string }
+        email: { type: string, format: email, maxLength: 254 }
+        password: { type: string, minLength: 8, maxLength: 200 }
+        name: { type: string, minLength: 1, maxLength: 80 }
       required: [email, password, name]
     UpdateProfileBody:
       type: object
@@ -689,7 +689,33 @@ components:
           items: { $ref: "#/components/schemas/WeakArea" }
         plan: { type: string }
         planUsage: { $ref: "#/components/schemas/PlanUsage" }
-      required: [studySetsCount, flashcardsCount, quizAttemptsCount, averageQuizScore, upcomingExams, todaySessions, recentStudySets, weakAreas, plan, planUsage]
+        streak: { $ref: "#/components/schemas/StreakInfo" }
+        activity:
+          type: array
+          items: { $ref: "#/components/schemas/DailyActivity" }
+        scoreHistory:
+          type: array
+          items: { $ref: "#/components/schemas/ScorePoint" }
+      required: [studySetsCount, flashcardsCount, quizAttemptsCount, averageQuizScore, upcomingExams, todaySessions, recentStudySets, weakAreas, plan, planUsage, streak, activity, scoreHistory]
+    StreakInfo:
+      type: object
+      properties:
+        current: { type: integer }
+        longest: { type: integer }
+        activeToday: { type: boolean }
+      required: [current, longest, activeToday]
+    DailyActivity:
+      type: object
+      properties:
+        date: { type: string }
+        count: { type: integer }
+      required: [date, count]
+    ScorePoint:
+      type: object
+      properties:
+        date: { type: string }
+        score: { type: number }
+      required: [date, score]
     PlanUsage:
       type: object
       properties:
@@ -773,22 +799,22 @@ components:
     CreateStudySetBody:
       type: object
       properties:
-        title: { type: string }
-        subject: { type: string }
-        course: { type: ["string", "null"] }
+        title: { type: string, minLength: 1, maxLength: 200 }
+        subject: { type: string, minLength: 1, maxLength: 100 }
+        course: { type: ["string", "null"], maxLength: 200 }
         difficulty: { type: string, enum: [easy, medium, hard] }
-        learningGoal: { type: ["string", "null"] }
+        learningGoal: { type: ["string", "null"], maxLength: 500 }
         examDate: { type: ["string", "null"] }
-        notes: { type: string }
+        notes: { type: string, minLength: 1, maxLength: 50000 }
       required: [title, subject, difficulty, notes]
     UpdateStudySetBody:
       type: object
       properties:
-        title: { type: string }
-        subject: { type: string }
-        course: { type: ["string", "null"] }
-        difficulty: { type: string }
-        learningGoal: { type: ["string", "null"] }
+        title: { type: string, minLength: 1, maxLength: 200 }
+        subject: { type: string, minLength: 1, maxLength: 100 }
+        course: { type: ["string", "null"], maxLength: 200 }
+        difficulty: { type: string, enum: [easy, medium, hard] }
+        learningGoal: { type: ["string", "null"], maxLength: 500 }
         examDate: { type: ["string", "null"] }
         folderId: { type: ["integer", "null"] }
 
@@ -946,8 +972,8 @@ components:
     CreateFolderBody:
       type: object
       properties:
-        name: { type: string }
-        color: { type: string }
+        name: { type: string, minLength: 1, maxLength: 80 }
+        color: { type: string, maxLength: 32 }
       required: [name]
 
     StudyTemplate:

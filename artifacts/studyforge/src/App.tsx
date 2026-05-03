@@ -8,6 +8,7 @@ import { AuthProvider } from "@/hooks/use-auth";
 import { ThemeProvider } from "next-themes";
 import { AppLayout } from "@/components/app-layout";
 import { MarketingLayout } from "@/components/marketing-layout";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { Loader2 } from "lucide-react";
 
 // Eager: small, always-rendered shells
@@ -57,6 +58,7 @@ function App() {
         <AuthProvider>
           <TooltipProvider>
             <WouterRouter base={import.meta.env.BASE_URL?.replace(/\/$/, "")}>
+              <ErrorBoundary>
               <Suspense fallback={<PageFallback />}>
                 <Switch>
                   <Route path="/">
@@ -105,6 +107,7 @@ function App() {
                   <Route component={NotFound} />
                 </Switch>
               </Suspense>
+              </ErrorBoundary>
             </WouterRouter>
             <Toaster />
             <SonnerToaster />

@@ -7,7 +7,16 @@
  */
 
 export interface SignupBody {
+  /** @maxLength 254 */
   email: string;
+  /**
+   * @minLength 8
+   * @maxLength 200
+   */
   password: string;
+  /**
+   * @minLength 1
+   * @maxLength 80
+   */
   name: string;
 }

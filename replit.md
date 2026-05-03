@@ -56,6 +56,17 @@ Frontend lives at `/`, API at `/api/*`. Both pass through the workspace proxy.
 - `pnpm -w run typecheck` — full typecheck across workspace
 - `PORT=3000 BASE_PATH=/app pnpm --filter @workspace/studyforge run build` — production build
 
+## Reliability, Security & Feature Batch (May 2026)
+
+- DB indexes on hot columns; new `study_activity` and `stripe_events` tables; `users` gained `current_streak` / `longest_streak` / `last_activity_date`.
+- Express error middleware (`errorHandler`); real DB-backed `/api/healthz` (`select 1`).
+- Auth: session rotation on login/signup, password policy (≥8), `secure` cookie when `NODE_ENV=production`.
+- Transactional create / delete / duplicate / metadata-update for study sets; `exam_countdowns` kept in sync on edit.
+- N+1 fixes: dashboard, admin, folders, study set list use SQL aggregates / LEFT JOINs.
+- Stripe webhook idempotency via `stripe_events` with `INSERT ... ON CONFLICT DO NOTHING RETURNING` claim; row is released if the handler throws so Stripe retries can re-process.
+- Streak service records activity on study-set create + flashcard status updates; dashboard returns `streak`, last-14-days `activity`, and quiz `scoreHistory`.
+- Frontend: `ErrorBoundary` wraps the app, dashboard `StreakWidget` + `ScoreTrend` (recharts), edit-metadata dialog with explicit-null clearing for `course` / `examDate`, flashcards keyboard shortcuts (Space / ← / → / 1 / 2) and removed per-card toast spam, memoized quiz question card, admin table horizontal scroll wrapper.
+
 ## Launch Polish (May 2026)
 
 - Landing page rebuilt with How-it-works, testimonials, FAQ, and final CTA sections.

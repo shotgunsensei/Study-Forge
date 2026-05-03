@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import {
   db,
   studySetsTable,
@@ -25,6 +25,7 @@ import {
   listSetsForUser,
   regenerateForSet,
 } from "../lib/studySetService";
+import { recordActivity } from "../lib/streakService";
 
 const router: IRouter = Router();
 
@@ -49,7 +50,12 @@ router.post("/study-sets", requireAuth, async (req, res): Promise<void> => {
     return;
   }
   const limits = limitsFor(user);
-  const existingCount = (await db.select().from(studySetsTable).where(eq(studySetsTable.userId, user.id))).length;
+  // Cheap COUNT instead of SELECT *.
+  const [{ count }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(studySetsTable)
+    .where(eq(studySetsTable.userId, user.id));
+  const existingCount = Number(count);
   if (limits.maxStudySets !== null && existingCount >= limits.maxStudySets) {
     res.status(402).json(
       limitErrorBody(
@@ -64,19 +70,6 @@ router.post("/study-sets", requireAuth, async (req, res): Promise<void> => {
 
   const body = parsed.data;
   const examDate = body.examDate && body.examDate.length > 0 ? body.examDate : null;
-  const [set] = await db
-    .insert(studySetsTable)
-    .values({
-      userId: user.id,
-      title: body.title,
-      subject: body.subject,
-      course: body.course ?? null,
-      difficulty: body.difficulty,
-      learningGoal: body.learningGoal ?? null,
-      examDate,
-      notes: body.notes,
-    })
-    .returning();
 
   const generateOpts = {
     notes: body.notes,
@@ -86,19 +79,42 @@ router.post("/study-sets", requireAuth, async (req, res): Promise<void> => {
     examDate,
     maxFlashcards: limits.maxFlashcardsPerSet ?? undefined,
   };
+  // Generate materials BEFORE the transaction so a slow AI call doesn't hold
+  // a DB transaction open.
   const materials = (await generateMaterialsAi(generateOpts)) ?? generateMaterials(generateOpts);
-  await applyMaterialsToSet(set.id, materials);
 
-  if (examDate) {
-    await db.insert(examCountdownsTable).values({
-      userId: user.id,
-      studySetId: set.id,
-      examName: body.title,
-      examDate,
-    });
-  }
+  // Atomic write: study set + materials + exam countdown all succeed or none do.
+  const setId = await db.transaction(async (tx) => {
+    const [set] = await tx
+      .insert(studySetsTable)
+      .values({
+        userId: user.id,
+        title: body.title,
+        subject: body.subject,
+        course: body.course ?? null,
+        difficulty: body.difficulty,
+        learningGoal: body.learningGoal ?? null,
+        examDate,
+        notes: body.notes,
+      })
+      .returning();
+    await applyMaterialsToSet(set.id, materials, tx);
+    if (examDate) {
+      await tx.insert(examCountdownsTable).values({
+        userId: user.id,
+        studySetId: set.id,
+        examName: body.title,
+        examDate,
+      });
+    }
+    return set.id;
+  });
 
-  const full = await buildStudySetResponse(set.id);
+  // Activity tracking — fire-and-forget so a streak hiccup never blocks the
+  // user-visible response.
+  recordActivity(user.id).catch((err) => req.log.warn({ err }, "recordActivity failed"));
+
+  const full = await buildStudySetResponse(setId);
   res.status(201).json(full);
 });
 
@@ -149,7 +165,29 @@ router.patch("/study-sets/:id", requireAuth, async (req, res): Promise<void> => 
   if (parsed.data.learningGoal !== undefined) updates.learningGoal = parsed.data.learningGoal;
   if (parsed.data.examDate !== undefined) updates.examDate = parsed.data.examDate;
   if (parsed.data.folderId !== undefined) updates.folderId = parsed.data.folderId;
-  await db.update(studySetsTable).set(updates).where(eq(studySetsTable.id, id));
+
+  const titleChanged = parsed.data.title !== undefined && parsed.data.title !== set.title;
+  const examChanged = parsed.data.examDate !== undefined && parsed.data.examDate !== set.examDate;
+  const newTitle = (parsed.data.title ?? set.title) as string;
+  const newExamDate = (parsed.data.examDate !== undefined ? parsed.data.examDate : set.examDate) as
+    | string
+    | null;
+
+  await db.transaction(async (tx) => {
+    await tx.update(studySetsTable).set(updates).where(eq(studySetsTable.id, id));
+    if (titleChanged || examChanged) {
+      // Keep exam_countdowns in sync with the study set's metadata.
+      await tx.delete(examCountdownsTable).where(eq(examCountdownsTable.studySetId, id));
+      if (newExamDate) {
+        await tx.insert(examCountdownsTable).values({
+          userId: user.id,
+          studySetId: id,
+          examName: newTitle,
+          examDate: newExamDate,
+        });
+      }
+    }
+  });
   const full = await buildStudySetResponse(id);
   res.json(full);
 });
@@ -169,12 +207,14 @@ router.delete("/study-sets/:id", requireAuth, async (req, res): Promise<void> =>
     res.status(404).json({ error: "Study set not found" });
     return;
   }
-  await db.delete(flashcardsTable).where(eq(flashcardsTable.studySetId, id));
-  await db.delete(quizQuestionsTable).where(eq(quizQuestionsTable.studySetId, id));
-  await db.delete(quizAttemptsTable).where(eq(quizAttemptsTable.studySetId, id));
-  await db.delete(studySessionsTable).where(eq(studySessionsTable.studySetId, id));
-  await db.delete(examCountdownsTable).where(eq(examCountdownsTable.studySetId, id));
-  await db.delete(studySetsTable).where(eq(studySetsTable.id, id));
+  await db.transaction(async (tx) => {
+    await tx.delete(flashcardsTable).where(eq(flashcardsTable.studySetId, id));
+    await tx.delete(quizQuestionsTable).where(eq(quizQuestionsTable.studySetId, id));
+    await tx.delete(quizAttemptsTable).where(eq(quizAttemptsTable.studySetId, id));
+    await tx.delete(studySessionsTable).where(eq(studySessionsTable.studySetId, id));
+    await tx.delete(examCountdownsTable).where(eq(examCountdownsTable.studySetId, id));
+    await tx.delete(studySetsTable).where(eq(studySetsTable.id, id));
+  });
   res.json({ ok: true });
 });
 
@@ -186,7 +226,11 @@ router.post("/study-sets/:id/duplicate", requireAuth, async (req, res): Promise<
   }
   const user = req.user!;
   const limits = limitsFor(user);
-  const existingCount = (await db.select().from(studySetsTable).where(eq(studySetsTable.userId, user.id))).length;
+  const [{ count }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(studySetsTable)
+    .where(eq(studySetsTable.userId, user.id));
+  const existingCount = Number(count);
   if (limits.maxStudySets !== null && existingCount >= limits.maxStudySets) {
     res.status(402).json(
       limitErrorBody(
@@ -206,68 +250,71 @@ router.post("/study-sets/:id/duplicate", requireAuth, async (req, res): Promise<
     res.status(404).json({ error: "Study set not found" });
     return;
   }
-  const [copy] = await db
-    .insert(studySetsTable)
-    .values({
-      userId: user.id,
-      folderId: set.folderId ?? null,
-      title: `${set.title} (Copy)`,
-      subject: set.subject,
-      course: set.course ?? null,
-      difficulty: set.difficulty,
-      learningGoal: set.learningGoal ?? null,
-      examDate: set.examDate,
-      notes: set.notes,
-      summary: set.summary,
-      keyTerms: set.keyTerms,
-      reviewSheet: set.reviewSheet,
-      weakAreas: set.weakAreas,
-      qualityScore: set.qualityScore,
-    })
-    .returning();
-  const cards = await db.select().from(flashcardsTable).where(eq(flashcardsTable.studySetId, id));
-  if (cards.length > 0) {
-    await db.insert(flashcardsTable).values(
-      cards.map((c) => ({
-        studySetId: copy.id,
-        position: c.position,
-        front: c.front,
-        back: c.back,
-        status: "new",
-      })),
-    );
-  }
-  const quiz = await db.select().from(quizQuestionsTable).where(eq(quizQuestionsTable.studySetId, id));
-  if (quiz.length > 0) {
-    await db.insert(quizQuestionsTable).values(
-      quiz.map((q) => ({
-        studySetId: copy.id,
-        position: q.position,
-        type: q.type,
-        question: q.question,
-        choices: q.choices,
-        correctIndex: q.correctIndex,
-        answer: q.answer,
-        explanation: q.explanation,
-        topic: q.topic,
-      })),
-    );
-  }
-  const sessions = await db.select().from(studySessionsTable).where(eq(studySessionsTable.studySetId, id));
-  if (sessions.length > 0) {
-    await db.insert(studySessionsTable).values(
-      sessions.map((s) => ({
-        studySetId: copy.id,
-        day: s.day,
-        date: s.date,
-        topic: s.topic,
-        focus: s.focus,
-        estimatedMinutes: s.estimatedMinutes,
-        completed: false,
-      })),
-    );
-  }
-  const full = await buildStudySetResponse(copy.id);
+  const copyId = await db.transaction(async (tx) => {
+    const [copy] = await tx
+      .insert(studySetsTable)
+      .values({
+        userId: user.id,
+        folderId: set.folderId ?? null,
+        title: `${set.title} (Copy)`,
+        subject: set.subject,
+        course: set.course ?? null,
+        difficulty: set.difficulty,
+        learningGoal: set.learningGoal ?? null,
+        examDate: set.examDate,
+        notes: set.notes,
+        summary: set.summary,
+        keyTerms: set.keyTerms,
+        reviewSheet: set.reviewSheet,
+        weakAreas: set.weakAreas,
+        qualityScore: set.qualityScore,
+      })
+      .returning();
+    const cards = await tx.select().from(flashcardsTable).where(eq(flashcardsTable.studySetId, id));
+    if (cards.length > 0) {
+      await tx.insert(flashcardsTable).values(
+        cards.map((c) => ({
+          studySetId: copy.id,
+          position: c.position,
+          front: c.front,
+          back: c.back,
+          status: "new",
+        })),
+      );
+    }
+    const quiz = await tx.select().from(quizQuestionsTable).where(eq(quizQuestionsTable.studySetId, id));
+    if (quiz.length > 0) {
+      await tx.insert(quizQuestionsTable).values(
+        quiz.map((q) => ({
+          studySetId: copy.id,
+          position: q.position,
+          type: q.type,
+          question: q.question,
+          choices: q.choices,
+          correctIndex: q.correctIndex,
+          answer: q.answer,
+          explanation: q.explanation,
+          topic: q.topic,
+        })),
+      );
+    }
+    const sessions = await tx.select().from(studySessionsTable).where(eq(studySessionsTable.studySetId, id));
+    if (sessions.length > 0) {
+      await tx.insert(studySessionsTable).values(
+        sessions.map((s) => ({
+          studySetId: copy.id,
+          day: s.day,
+          date: s.date,
+          topic: s.topic,
+          focus: s.focus,
+          estimatedMinutes: s.estimatedMinutes,
+          completed: false,
+        })),
+      );
+    }
+    return copy.id;
+  });
+  const full = await buildStudySetResponse(copyId);
   res.status(201).json(full);
 });
 
@@ -324,6 +371,7 @@ router.patch(
       res.status(404).json({ error: "Flashcard not found" });
       return;
     }
+    recordActivity(user.id).catch((err) => req.log.warn({ err }, "recordActivity failed"));
     res.json(flashcardRowToApi(updated));
   },
 );

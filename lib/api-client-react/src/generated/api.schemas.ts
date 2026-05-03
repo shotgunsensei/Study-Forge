@@ -62,8 +62,17 @@ export interface LoginBody {
 }
 
 export interface SignupBody {
+  /** @maxLength 254 */
   email: string;
+  /**
+   * @minLength 8
+   * @maxLength 200
+   */
   password: string;
+  /**
+   * @minLength 1
+   * @maxLength 80
+   */
   name: string;
 }
 
@@ -151,6 +160,22 @@ export interface PlanUsage {
   quizAttemptsLimit: number | null;
 }
 
+export interface StreakInfo {
+  current: number;
+  longest: number;
+  activeToday: boolean;
+}
+
+export interface DailyActivity {
+  date: string;
+  count: number;
+}
+
+export interface ScorePoint {
+  date: string;
+  score: number;
+}
+
 export interface DashboardSummary {
   studySetsCount: number;
   flashcardsCount: number;
@@ -162,6 +187,9 @@ export interface DashboardSummary {
   weakAreas: WeakArea[];
   plan: string;
   planUsage: PlanUsage;
+  streak: StreakInfo;
+  activity: DailyActivity[];
+  scoreHistory: ScorePoint[];
 }
 
 export interface KeyTerm {
@@ -258,25 +286,66 @@ export const CreateStudySetBodyDifficulty = {
 } as const;
 
 export interface CreateStudySetBody {
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
   title: string;
+  /**
+   * @minLength 1
+   * @maxLength 100
+   */
   subject: string;
-  /** @nullable */
+  /**
+   * @maxLength 200
+   * @nullable
+   */
   course?: string | null;
   difficulty: CreateStudySetBodyDifficulty;
-  /** @nullable */
+  /**
+   * @maxLength 500
+   * @nullable
+   */
   learningGoal?: string | null;
   /** @nullable */
   examDate?: string | null;
+  /**
+   * @minLength 1
+   * @maxLength 50000
+   */
   notes: string;
 }
 
+export type UpdateStudySetBodyDifficulty =
+  (typeof UpdateStudySetBodyDifficulty)[keyof typeof UpdateStudySetBodyDifficulty];
+
+export const UpdateStudySetBodyDifficulty = {
+  easy: "easy",
+  medium: "medium",
+  hard: "hard",
+} as const;
+
 export interface UpdateStudySetBody {
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
   title?: string;
+  /**
+   * @minLength 1
+   * @maxLength 100
+   */
   subject?: string;
-  /** @nullable */
+  /**
+   * @maxLength 200
+   * @nullable
+   */
   course?: string | null;
-  difficulty?: string;
-  /** @nullable */
+  difficulty?: UpdateStudySetBodyDifficulty;
+  /**
+   * @maxLength 500
+   * @nullable
+   */
   learningGoal?: string | null;
   /** @nullable */
   examDate?: string | null;
@@ -350,7 +419,12 @@ export interface Folder {
 }
 
 export interface CreateFolderBody {
+  /**
+   * @minLength 1
+   * @maxLength 80
+   */
   name: string;
+  /** @maxLength 32 */
   color?: string;
 }
 

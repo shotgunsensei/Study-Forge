@@ -1,4 +1,4 @@
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, sql } from "drizzle-orm";
 import {
   db,
   studySetsTable,
@@ -10,6 +10,8 @@ import {
   type QuizQuestionRow,
   type StudySessionRow,
 } from "@workspace/db";
+
+type DbOrTx = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 import { generateMaterials, type GeneratedMaterials } from "./generator";
 import { generateMaterialsAi } from "./aiGenerator";
 import { limitsFor } from "./plans";
@@ -132,13 +134,17 @@ export async function regenerateForSet(setId: number, user: User): Promise<void>
   await applyMaterialsToSet(setId, materials);
 }
 
-export async function applyMaterialsToSet(setId: number, materials: GeneratedMaterials): Promise<void> {
-  await db.delete(flashcardsTable).where(eq(flashcardsTable.studySetId, setId));
-  await db.delete(quizQuestionsTable).where(eq(quizQuestionsTable.studySetId, setId));
-  await db.delete(studySessionsTable).where(eq(studySessionsTable.studySetId, setId));
+export async function applyMaterialsToSet(
+  setId: number,
+  materials: GeneratedMaterials,
+  conn: DbOrTx = db,
+): Promise<void> {
+  await conn.delete(flashcardsTable).where(eq(flashcardsTable.studySetId, setId));
+  await conn.delete(quizQuestionsTable).where(eq(quizQuestionsTable.studySetId, setId));
+  await conn.delete(studySessionsTable).where(eq(studySessionsTable.studySetId, setId));
 
   if (materials.flashcards.length > 0) {
-    await db.insert(flashcardsTable).values(
+    await conn.insert(flashcardsTable).values(
       materials.flashcards.map((f, i) => ({
         studySetId: setId,
         position: i,
@@ -173,10 +179,10 @@ export async function applyMaterialsToSet(setId: number, materials: GeneratedMat
     })),
   ];
   if (quizRows.length > 0) {
-    await db.insert(quizQuestionsTable).values(quizRows);
+    await conn.insert(quizQuestionsTable).values(quizRows);
   }
   if (materials.studyPlan.length > 0) {
-    await db.insert(studySessionsTable).values(
+    await conn.insert(studySessionsTable).values(
       materials.studyPlan.map((p) => ({
         studySetId: setId,
         day: p.day,
@@ -188,7 +194,7 @@ export async function applyMaterialsToSet(setId: number, materials: GeneratedMat
       })),
     );
   }
-  await db
+  await conn
     .update(studySetsTable)
     .set({
       summary: materials.summary,
@@ -225,18 +231,25 @@ export async function listSetsForUser(
   }
   if (filtered.length === 0) return [];
   const setIds = filtered.map((r) => r.id);
-  const cards = await db
-    .select()
+  // SQL aggregate counts — no in-memory N+1 walk.
+  const cardRows = await db
+    .select({
+      studySetId: flashcardsTable.studySetId,
+      count: sql<number>`count(*)::int`,
+    })
     .from(flashcardsTable)
-    .where(inArray(flashcardsTable.studySetId, setIds));
-  const quizzes = await db
-    .select()
+    .where(inArray(flashcardsTable.studySetId, setIds))
+    .groupBy(flashcardsTable.studySetId);
+  const quizRows = await db
+    .select({
+      studySetId: quizQuestionsTable.studySetId,
+      count: sql<number>`count(*)::int`,
+    })
     .from(quizQuestionsTable)
-    .where(inArray(quizQuestionsTable.studySetId, setIds));
-  const cardCounts = new Map<number, number>();
-  for (const c of cards) cardCounts.set(c.studySetId, (cardCounts.get(c.studySetId) ?? 0) + 1);
-  const quizCounts = new Map<number, number>();
-  for (const q of quizzes) quizCounts.set(q.studySetId, (quizCounts.get(q.studySetId) ?? 0) + 1);
+    .where(inArray(quizQuestionsTable.studySetId, setIds))
+    .groupBy(quizQuestionsTable.studySetId);
+  const cardCounts = new Map(cardRows.map((r) => [r.studySetId, Number(r.count)]));
+  const quizCounts = new Map(quizRows.map((r) => [r.studySetId, Number(r.count)]));
   return filtered
     .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
     .map((r) => studySetRowToSummary(r, cardCounts.get(r.id) ?? 0, quizCounts.get(r.id) ?? 0));

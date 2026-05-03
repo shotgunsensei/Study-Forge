@@ -8,14 +8,32 @@
 import type { CreateStudySetBodyDifficulty } from "./createStudySetBodyDifficulty";
 
 export interface CreateStudySetBody {
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
   title: string;
+  /**
+   * @minLength 1
+   * @maxLength 100
+   */
   subject: string;
-  /** @nullable */
+  /**
+   * @maxLength 200
+   * @nullable
+   */
   course?: string | null;
   difficulty: CreateStudySetBodyDifficulty;
-  /** @nullable */
+  /**
+   * @maxLength 500
+   * @nullable
+   */
   learningGoal?: string | null;
   /** @nullable */
   examDate?: string | null;
+  /**
+   * @minLength 1
+   * @maxLength 50000
+   */
   notes: string;
 }

@@ -1,19 +1,43 @@
-import { useGetStudySet, getGetStudySetQueryKey } from "@workspace/api-client-react";
+import { useState } from "react";
+import {
+  useGetStudySet,
+  getGetStudySetQueryKey,
+  useUpdateStudySet,
+} from "@workspace/api-client-react";
 import { useDocumentMeta } from "@/hooks/use-document-meta";
 import { Link, useRoute } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Brain, FileText, CheckSquare, Calendar, Download, RefreshCw, Loader2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Brain, FileText, CheckSquare, Calendar, Download, Pencil } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 export default function StudySetDetail() {
   const [, params] = useRoute("/sets/:id");
   const id = parseInt(params?.id || "0", 10);
-  
-  const { data: set, isLoading, error } = useGetStudySet(id, { 
-    query: { enabled: !!id, queryKey: getGetStudySetQueryKey(id) } 
+
+  const { data: set, isLoading, error } = useGetStudySet(id, {
+    query: { enabled: !!id, queryKey: getGetStudySetQueryKey(id) },
   });
+  const updateSet = useUpdateStudySet();
+  const queryClient = useQueryClient();
+
+  const [editOpen, setEditOpen] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
+  const [subjectDraft, setSubjectDraft] = useState("");
+  const [courseDraft, setCourseDraft] = useState("");
+  const [examDateDraft, setExamDateDraft] = useState("");
 
   useDocumentMeta(set?.title || "Study Set");
 
@@ -37,19 +61,52 @@ export default function StudySetDetail() {
 
   const exportAsJSON = () => {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(set, null, 2));
-    const downloadAnchorNode = document.createElement('a');
+    const downloadAnchorNode = document.createElement("a");
     downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", `${set.title.replace(/\s+/g, '_')}.json`);
+    downloadAnchorNode.setAttribute("download", `${set.title.replace(/\s+/g, "_")}.json`);
     document.body.appendChild(downloadAnchorNode);
     downloadAnchorNode.click();
     downloadAnchorNode.remove();
+  };
+
+  const openEdit = () => {
+    setTitleDraft(set.title);
+    setSubjectDraft(set.subject);
+    setCourseDraft(set.course ?? "");
+    setExamDateDraft(set.examDate ?? "");
+    setEditOpen(true);
+  };
+
+  const saveEdit = async () => {
+    const t = titleDraft.trim();
+    const s = subjectDraft.trim();
+    if (!t || !s) {
+      toast.error("Title and subject are required");
+      return;
+    }
+    try {
+      await updateSet.mutateAsync({
+        id,
+        data: {
+          title: t,
+          subject: s,
+          course: courseDraft.trim() ? courseDraft.trim() : null,
+          examDate: examDateDraft ? examDateDraft : null,
+        },
+      });
+      await queryClient.invalidateQueries({ queryKey: getGetStudySetQueryKey(id) });
+      toast.success("Study set updated");
+      setEditOpen(false);
+    } catch {
+      toast.error("Failed to update study set");
+    }
   };
 
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <div className="flex items-center gap-3 mb-2">
+          <div className="flex items-center gap-3 mb-2 flex-wrap">
             <span className="bg-primary/20 text-primary px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider">
               {set.subject}
             </span>
@@ -66,14 +123,17 @@ export default function StudySetDetail() {
           {set.course && <p className="text-muted-foreground mt-1">{set.course}</p>}
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" onClick={openEdit} aria-label="Edit study set metadata">
+            <Pencil className="mr-2 h-4 w-4" /> Edit
+          </Button>
           <Button variant="outline" onClick={exportAsJSON}>
             <Download className="mr-2 h-4 w-4" /> Export
           </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Link href={`/sets/${id}/flashcards`}>
           <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
             <CardContent className="p-6 flex flex-col items-center justify-center text-center space-y-4">
@@ -185,6 +245,61 @@ export default function StudySetDetail() {
           </Card>
         </div>
       </div>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit study set</DialogTitle>
+            <DialogDescription>
+              Update the metadata for this study set. The notes and generated materials are unchanged.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="edit-title">Title</Label>
+              <Input
+                id="edit-title"
+                value={titleDraft}
+                onChange={(e) => setTitleDraft(e.target.value)}
+                maxLength={200}
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-subject">Subject</Label>
+              <Input
+                id="edit-subject"
+                value={subjectDraft}
+                onChange={(e) => setSubjectDraft(e.target.value)}
+                maxLength={100}
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-course">Course (optional)</Label>
+              <Input
+                id="edit-course"
+                value={courseDraft}
+                onChange={(e) => setCourseDraft(e.target.value)}
+                maxLength={200}
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-exam">Exam date (optional)</Label>
+              <Input
+                id="edit-exam"
+                type="date"
+                value={examDateDraft}
+                onChange={(e) => setExamDateDraft(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
+            <Button onClick={saveEdit} disabled={updateSet.isPending}>
+              {updateSet.isPending ? "Saving..." : "Save changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

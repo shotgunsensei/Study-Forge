@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { db, foldersTable, studySetsTable } from "@workspace/db";
 import { CreateFolderBody } from "@workspace/api-zod";
 import { requireAuth } from "../lib/auth";
@@ -8,24 +8,27 @@ const router: IRouter = Router();
 
 router.get("/folders", requireAuth, async (req, res): Promise<void> => {
   const user = req.user!;
-  const folders = await db.select().from(foldersTable).where(eq(foldersTable.userId, user.id));
-  if (folders.length === 0) {
-    res.json([]);
-    return;
-  }
-  const ids = folders.map((f) => f.id);
-  const sets = await db
-    .select()
-    .from(studySetsTable)
-    .where(and(eq(studySetsTable.userId, user.id), inArray(studySetsTable.folderId, ids)));
-  const counts = new Map<number, number>();
-  for (const s of sets) if (s.folderId != null) counts.set(s.folderId, (counts.get(s.folderId) ?? 0) + 1);
+  // Single LEFT JOIN + GROUP BY instead of fetch-then-count.
+  const rows = await db
+    .select({
+      id: foldersTable.id,
+      name: foldersTable.name,
+      color: foldersTable.color,
+      studySetCount: sql<number>`count(${studySetsTable.id})::int`,
+    })
+    .from(foldersTable)
+    .leftJoin(
+      studySetsTable,
+      and(eq(studySetsTable.folderId, foldersTable.id), eq(studySetsTable.userId, user.id)),
+    )
+    .where(eq(foldersTable.userId, user.id))
+    .groupBy(foldersTable.id);
   res.json(
-    folders.map((f) => ({
-      id: f.id,
-      name: f.name,
-      color: f.color,
-      studySetCount: counts.get(f.id) ?? 0,
+    rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      color: r.color,
+      studySetCount: Number(r.studySetCount),
     })),
   );
 });
@@ -63,11 +66,13 @@ router.delete("/folders/:id", requireAuth, async (req, res): Promise<void> => {
     res.status(404).json({ error: "Folder not found" });
     return;
   }
-  await db
-    .update(studySetsTable)
-    .set({ folderId: null })
-    .where(eq(studySetsTable.folderId, id));
-  await db.delete(foldersTable).where(eq(foldersTable.id, id));
+  await db.transaction(async (tx) => {
+    await tx
+      .update(studySetsTable)
+      .set({ folderId: null })
+      .where(eq(studySetsTable.folderId, id));
+    await tx.delete(foldersTable).where(eq(foldersTable.id, id));
+  });
   res.json({ ok: true });
 });
 

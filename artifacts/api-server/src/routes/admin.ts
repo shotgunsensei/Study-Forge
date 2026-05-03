@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { desc } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import {
   db,
   usersTable,
@@ -16,58 +16,83 @@ function isDemoMode(): boolean {
 }
 
 router.get("/admin/stats", requireAdmin, async (_req, res): Promise<void> => {
-  const users = await db.select().from(usersTable);
-  const sets = await db.select().from(studySetsTable);
-  const flashcards = await db.select().from(flashcardsTable);
-  const attempts = await db.select().from(quizAttemptsTable);
+  // Replace four full-table SELECTs with cheap COUNT aggregates.
+  const [{ totalUsers }] = await db.select({ totalUsers: sql<number>`count(*)::int` }).from(usersTable);
+  const [{ totalStudySets }] = await db
+    .select({ totalStudySets: sql<number>`count(*)::int` })
+    .from(studySetsTable);
+  const [{ totalFlashcards }] = await db
+    .select({ totalFlashcards: sql<number>`count(*)::int` })
+    .from(flashcardsTable);
+  const [{ totalQuizAttempts }] = await db
+    .select({ totalQuizAttempts: sql<number>`count(*)::int` })
+    .from(quizAttemptsTable);
 
-  const planMap = new Map<string, number>();
-  for (const u of users) planMap.set(u.plan, (planMap.get(u.plan) ?? 0) + 1);
-  const usersByPlan = ["free", "pro", "tutor"].map((p) => ({
-    plan: p,
-    count: planMap.get(p) ?? 0,
-  }));
+  const planRows = await db
+    .select({ plan: usersTable.plan, count: sql<number>`count(*)::int` })
+    .from(usersTable)
+    .groupBy(usersTable.plan);
+  const planMap = new Map(planRows.map((r) => [r.plan, Number(r.count)]));
+  const usersByPlan = ["free", "pro", "tutor"].map((p) => ({ plan: p, count: planMap.get(p) ?? 0 }));
 
-  const setCountByUser = new Map<number, number>();
-  for (const s of sets) setCountByUser.set(s.userId, (setCountByUser.get(s.userId) ?? 0) + 1);
+  const recentRows = await db
+    .select({
+      id: usersTable.id,
+      email: usersTable.email,
+      name: usersTable.name,
+      role: usersTable.role,
+      plan: usersTable.plan,
+      createdAt: usersTable.createdAt,
+      studySetCount: sql<number>`coalesce(count(${studySetsTable.id}), 0)::int`,
+    })
+    .from(usersTable)
+    .leftJoin(studySetsTable, eq(studySetsTable.userId, usersTable.id))
+    .groupBy(usersTable.id)
+    .orderBy(desc(usersTable.createdAt))
+    .limit(8);
 
-  const recent = [...users]
-    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-    .slice(0, 8)
-    .map((u) => ({
+  res.json({
+    totalUsers: Number(totalUsers),
+    totalStudySets: Number(totalStudySets),
+    totalFlashcards: Number(totalFlashcards),
+    totalQuizAttempts: Number(totalQuizAttempts),
+    usersByPlan,
+    demoMode: isDemoMode(),
+    recentSignups: recentRows.map((u) => ({
       id: u.id,
       email: u.email,
       name: u.name,
       role: u.role,
       plan: u.plan,
-      studySetCount: setCountByUser.get(u.id) ?? 0,
+      studySetCount: Number(u.studySetCount),
       createdAt: u.createdAt.toISOString(),
-    }));
-
-  res.json({
-    totalUsers: users.length,
-    totalStudySets: sets.length,
-    totalFlashcards: flashcards.length,
-    totalQuizAttempts: attempts.length,
-    usersByPlan,
-    demoMode: isDemoMode(),
-    recentSignups: recent,
+    })),
   });
 });
 
 router.get("/admin/users", requireAdmin, async (_req, res): Promise<void> => {
-  const users = await db.select().from(usersTable).orderBy(desc(usersTable.createdAt));
-  const sets = await db.select().from(studySetsTable);
-  const setCountByUser = new Map<number, number>();
-  for (const s of sets) setCountByUser.set(s.userId, (setCountByUser.get(s.userId) ?? 0) + 1);
+  const rows = await db
+    .select({
+      id: usersTable.id,
+      email: usersTable.email,
+      name: usersTable.name,
+      role: usersTable.role,
+      plan: usersTable.plan,
+      createdAt: usersTable.createdAt,
+      studySetCount: sql<number>`coalesce(count(${studySetsTable.id}), 0)::int`,
+    })
+    .from(usersTable)
+    .leftJoin(studySetsTable, eq(studySetsTable.userId, usersTable.id))
+    .groupBy(usersTable.id)
+    .orderBy(desc(usersTable.createdAt));
   res.json(
-    users.map((u) => ({
+    rows.map((u) => ({
       id: u.id,
       email: u.email,
       name: u.name,
       role: u.role,
       plan: u.plan,
-      studySetCount: setCountByUser.get(u.id) ?? 0,
+      studySetCount: Number(u.studySetCount),
       createdAt: u.createdAt.toISOString(),
     })),
   );

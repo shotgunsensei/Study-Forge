@@ -3,6 +3,7 @@ import cookieParser from "cookie-parser";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { errorHandler } from "./lib/errorHandler";
 
 const app: Express = express();
 
@@ -38,5 +39,8 @@ app.use((req, res, next) => {
 app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);
+
+// Global error middleware — must be last.
+app.use(errorHandler);
 
 export default app;

@@ -1,7 +1,7 @@
 import express, { Router, type IRouter, type Request } from "express";
 import { eq } from "drizzle-orm";
 import Stripe from "stripe";
-import { db, usersTable } from "@workspace/db";
+import { db, usersTable, stripeEventsTable } from "@workspace/db";
 import { CreateCheckoutSessionBody } from "@workspace/api-zod";
 import { requireAuth } from "../lib/auth";
 import { planOf } from "../lib/plans";
@@ -164,6 +164,21 @@ router.post(
       return;
     }
 
+    // Idempotency guard — atomically claim the event id. ON CONFLICT DO NOTHING
+    // returns 0 rows when another concurrent delivery already claimed it; we
+    // skip in that case. We only mark "claimed" here; if business logic fails
+    // below, we delete the row so Stripe's retry can reprocess the event.
+    const claimed = await db
+      .insert(stripeEventsTable)
+      .values({ eventId: event.id, type: event.type })
+      .onConflictDoNothing({ target: stripeEventsTable.eventId })
+      .returning({ eventId: stripeEventsTable.eventId });
+    if (claimed.length === 0) {
+      logger.info({ eventId: event.id, type: event.type }, "Stripe event already processed");
+      res.json({ received: true, duplicate: true });
+      return;
+    }
+
     try {
       switch (event.type) {
         case "checkout.session.completed": {
@@ -210,6 +225,13 @@ router.post(
       }
       res.json({ received: true });
     } catch (err) {
+      // Release the idempotency claim so Stripe's retry can re-process this event.
+      await db
+        .delete(stripeEventsTable)
+        .where(eq(stripeEventsTable.eventId, event.id))
+        .catch((e) =>
+          logger.error({ err: e, eventId: event.id }, "Failed to release stripe event claim"),
+        );
       logger.error({ err, eventType: event.type }, "Stripe webhook handler failed");
       res.status(500).json({ error: "Webhook handler failed" });
     }
