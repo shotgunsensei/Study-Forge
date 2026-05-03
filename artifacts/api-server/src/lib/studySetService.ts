@@ -11,6 +11,7 @@ import {
   type StudySessionRow,
 } from "@workspace/db";
 import { generateMaterials, type GeneratedMaterials } from "./generator";
+import { generateMaterialsAi } from "./aiGenerator";
 import { limitsFor } from "./plans";
 import type { User } from "@workspace/db";
 
@@ -119,14 +120,15 @@ export async function regenerateForSet(setId: number, user: User): Promise<void>
   const [set] = await db.select().from(studySetsTable).where(eq(studySetsTable.id, setId));
   if (!set) return;
   const limits = limitsFor(user);
-  const materials = generateMaterials({
+  const opts = {
     notes: set.notes,
     title: set.title,
     subject: set.subject,
     difficulty: set.difficulty,
     examDate: dateToString(set.examDate),
     maxFlashcards: limits.maxFlashcardsPerSet ?? undefined,
-  });
+  };
+  const materials = (await generateMaterialsAi(opts)) ?? generateMaterials(opts);
   await applyMaterialsToSet(setId, materials);
 }
 

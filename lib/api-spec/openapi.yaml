@@ -107,6 +107,54 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/OkResponse"
+  /auth/profile:
+    patch:
+      operationId: updateProfile
+      tags: [auth]
+      summary: Update current user's name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProfileBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionResponse"
+  /auth/account:
+    delete:
+      operationId: deleteAccount
+      tags: [auth]
+      summary: Permanently delete the current user's account and all data
+      responses:
+        "200":
+          description: Account deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+  /contact:
+    post:
+      operationId: submitContact
+      tags: [auth]
+      summary: Send a message to the StudyForge team
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactBody"
+      responses:
+        "200":
+          description: Submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
 
   /dashboard:
     get:
@@ -607,6 +655,18 @@ components:
         password: { type: string }
         name: { type: string }
       required: [email, password, name]
+    UpdateProfileBody:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+      required: [name]
+    ContactBody:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        email: { type: string, format: email }
+        message: { type: string, minLength: 5, maxLength: 4000 }
+      required: [name, email, message]
 
     DashboardSummary:
       type: object

@@ -1,19 +1,74 @@
-import { useGetBillingStatus, useCreateBillingPortal, useLogout, useGetDashboard } from "@workspace/api-client-react";
+import { useState } from "react";
+import {
+  useGetBillingStatus,
+  useCreateBillingPortal,
+  useLogout,
+  useGetDashboard,
+  useUpdateProfile,
+  useDeleteAccount,
+} from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useDocumentMeta } from "@/hooks/use-document-meta";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Link } from "wouter";
-import { Loader2, User, CreditCard } from "lucide-react";
+import { Loader2, User, CreditCard, Trash2, Pencil, Check, X } from "lucide-react";
 import { toast } from "sonner";
 
 export default function Account() {
-  useDocumentMeta("Account Settings");
+  useDocumentMeta("Account Settings", "Manage your StudyForge profile, subscription, and account.");
   const { user, refresh } = useAuth();
   const { data: billing, isLoading: billingLoading } = useGetBillingStatus();
   const { data: dashboard } = useGetDashboard();
   const portal = useCreateBillingPortal();
   const logout = useLogout();
+  const updateProfile = useUpdateProfile();
+  const deleteAccount = useDeleteAccount();
+
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+
+  const isDemoAccount = user?.email.endsWith("@example.com") ?? false;
+
+  const startEdit = () => {
+    setNameDraft(user?.name ?? "");
+    setEditingName(true);
+  };
+
+  const cancelEdit = () => {
+    setEditingName(false);
+    setNameDraft("");
+  };
+
+  const saveName = async () => {
+    const trimmed = nameDraft.trim();
+    if (!trimmed) {
+      toast.error("Name cannot be empty");
+      return;
+    }
+    try {
+      await updateProfile.mutateAsync({ data: { name: trimmed } });
+      await refresh();
+      toast.success("Profile updated");
+      setEditingName(false);
+    } catch {
+      toast.error("Failed to update profile");
+    }
+  };
 
   const handlePortal = async () => {
     try {
@@ -23,7 +78,7 @@ export default function Account() {
       } else if (res.url) {
         window.location.href = res.url;
       }
-    } catch (err) {
+    } catch {
       toast.error("Failed to open billing portal");
     }
   };
@@ -32,6 +87,17 @@ export default function Account() {
     await logout.mutateAsync();
     refresh();
     window.location.href = "/";
+  };
+
+  const handleDelete = async () => {
+    try {
+      await deleteAccount.mutateAsync();
+      toast.success("Account deleted");
+      window.location.href = "/";
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to delete account";
+      toast.error(message);
+    }
   };
 
   if (!user) return null;
@@ -46,13 +112,39 @@ export default function Account() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <User className="h-5 w-5" /> Profile
+            <User className="h-5 w-5" aria-hidden="true" /> Profile
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
             <div className="text-sm font-medium text-muted-foreground mb-1">Name</div>
-            <div className="text-lg">{user.name}</div>
+            {editingName ? (
+              <div className="flex items-center gap-2">
+                <Input
+                  value={nameDraft}
+                  onChange={(e) => setNameDraft(e.target.value)}
+                  maxLength={80}
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") saveName();
+                    if (e.key === "Escape") cancelEdit();
+                  }}
+                />
+                <Button size="icon" onClick={saveName} disabled={updateProfile.isPending} aria-label="Save name">
+                  <Check className="h-4 w-4" aria-hidden="true" />
+                </Button>
+                <Button size="icon" variant="outline" onClick={cancelEdit} aria-label="Cancel">
+                  <X className="h-4 w-4" aria-hidden="true" />
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <div className="text-lg">{user.name}</div>
+                <Button size="icon" variant="ghost" onClick={startEdit} aria-label="Edit name">
+                  <Pencil className="h-4 w-4" aria-hidden="true" />
+                </Button>
+              </div>
+            )}
           </div>
           <div>
             <div className="text-sm font-medium text-muted-foreground mb-1">Email</div>
@@ -73,7 +165,7 @@ export default function Account() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <CreditCard className="h-5 w-5" /> Subscription
+            <CreditCard className="h-5 w-5" aria-hidden="true" /> Subscription
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -140,6 +232,52 @@ export default function Account() {
               {portal.isPending ? "Loading..." : "Manage Billing & Payment"}
             </Button>
           )}
+        </CardFooter>
+      </Card>
+
+      <Card className="border-destructive/40">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-destructive">
+            <Trash2 className="h-5 w-5" aria-hidden="true" /> Danger Zone
+          </CardTitle>
+          <CardDescription>
+            Permanently delete your account and all associated study sets, flashcards, quizzes, and exam countdowns. This cannot be undone.
+          </CardDescription>
+        </CardHeader>
+        <CardFooter className="bg-destructive/5 border-t border-destructive/30 py-4">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" disabled={isDemoAccount}>
+                {isDemoAccount ? "Demo accounts cannot be deleted" : "Delete my account"}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete your account?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This permanently removes your profile, study sets, flashcards, quiz attempts, exam countdowns, and folders. There is no recovery.
+                  <br /><br />
+                  Type <span className="font-mono font-semibold text-foreground">DELETE</span> to confirm.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <Input
+                value={deleteConfirm}
+                onChange={(e) => setDeleteConfirm(e.target.value)}
+                placeholder="DELETE"
+                aria-label="Type DELETE to confirm"
+              />
+              <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setDeleteConfirm("")}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  disabled={deleteConfirm !== "DELETE" || deleteAccount.isPending}
+                  onClick={handleDelete}
+                >
+                  {deleteAccount.isPending ? "Deleting..." : "Delete forever"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </CardFooter>
       </Card>
     </div>

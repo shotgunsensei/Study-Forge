@@ -9,6 +9,8 @@ export const usersTable = pgTable("users", {
   plan: text("plan").notNull().default("free"),
   quizAttemptsThisMonth: integer("quiz_attempts_this_month").notNull().default(0),
   quizAttemptsMonthKey: text("quiz_attempts_month_key").notNull().default(""),
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeSubscriptionId: text("stripe_subscription_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

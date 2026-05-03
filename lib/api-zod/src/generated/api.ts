@@ -84,6 +84,57 @@ export const LogoutResponse = zod.object({
 });
 
 /**
+ * @summary Update current user's name
+ */
+export const updateProfileBodyNameMax = 80;
+
+export const UpdateProfileBody = zod.object({
+  name: zod.string().min(1).max(updateProfileBodyNameMax),
+});
+
+export const UpdateProfileResponse = zod.object({
+  user: zod.union([
+    zod.object({
+      id: zod.number(),
+      email: zod.string(),
+      name: zod.string(),
+      role: zod.enum(["student", "tutor", "admin"]),
+      plan: zod.enum(["free", "pro", "tutor"]),
+      createdAt: zod.string(),
+    }),
+    zod.null(),
+  ]),
+});
+
+/**
+ * @summary Permanently delete the current user's account and all data
+ */
+export const DeleteAccountResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
+ * @summary Send a message to the StudyForge team
+ */
+export const submitContactBodyNameMax = 80;
+
+export const submitContactBodyMessageMin = 5;
+export const submitContactBodyMessageMax = 4000;
+
+export const SubmitContactBody = zod.object({
+  name: zod.string().min(1).max(submitContactBodyNameMax),
+  email: zod.string().email(),
+  message: zod
+    .string()
+    .min(submitContactBodyMessageMin)
+    .max(submitContactBodyMessageMax),
+});
+
+export const SubmitContactResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
  * @summary Dashboard summary for current user
  */
 export const GetDashboardResponse = zod.object({

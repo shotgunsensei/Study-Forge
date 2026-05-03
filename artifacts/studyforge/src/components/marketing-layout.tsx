@@ -45,7 +45,7 @@ export function MarketingLayout({ children }: { children: React.ReactNode }) {
             <div>
               <h4 className="font-semibold text-sm mb-3">Company</h4>
               <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><a href="mailto:hello@studyforge.app" className="hover:text-primary transition-colors">Contact</a></li>
+                <li><Link href="/contact" className="hover:text-primary transition-colors">Contact</Link></li>
                 <li><Link href="/pricing" className="hover:text-primary transition-colors">FAQ</Link></li>
               </ul>
             </div>

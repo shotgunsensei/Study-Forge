@@ -16,6 +16,7 @@ import {
 } from "@workspace/api-zod";
 import { requireAuth } from "../lib/auth";
 import { generateMaterials } from "../lib/generator";
+import { generateMaterialsAi } from "../lib/aiGenerator";
 import { limitsFor, planOf, limitErrorBody } from "../lib/plans";
 import {
   applyMaterialsToSet,
@@ -77,14 +78,15 @@ router.post("/study-sets", requireAuth, async (req, res): Promise<void> => {
     })
     .returning();
 
-  const materials = generateMaterials({
+  const generateOpts = {
     notes: body.notes,
     title: body.title,
     subject: body.subject,
     difficulty: body.difficulty,
     examDate,
     maxFlashcards: limits.maxFlashcardsPerSet ?? undefined,
-  });
+  };
+  const materials = (await generateMaterialsAi(generateOpts)) ?? generateMaterials(generateOpts);
   await applyMaterialsToSet(set.id, materials);
 
   if (examDate) {

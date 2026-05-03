@@ -67,6 +67,28 @@ export interface SignupBody {
   name: string;
 }
 
+export interface UpdateProfileBody {
+  /**
+   * @minLength 1
+   * @maxLength 80
+   */
+  name: string;
+}
+
+export interface ContactBody {
+  /**
+   * @minLength 1
+   * @maxLength 80
+   */
+  name: string;
+  email: string;
+  /**
+   * @minLength 5
+   * @maxLength 4000
+   */
+  message: string;
+}
+
 export type ExamCountdownRiskStatus =
   (typeof ExamCountdownRiskStatus)[keyof typeof ExamCountdownRiskStatus];
 

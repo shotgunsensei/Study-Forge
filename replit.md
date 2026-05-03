@@ -37,6 +37,14 @@ Returns HTTP 402 with `{ limitReached: true, feature, currentPlan, upgradeTo }` 
 
 Demo mode active when `STRIPE_SECRET_KEY` is missing — checkout instantly upgrades the user, billing portal downgrades to free, and the UI shows a "Demo Mode" banner.
 
+For real Stripe checkout set: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRO_PRICE_ID`, `STRIPE_TUTOR_PRICE_ID`, and (recommended) `APP_PUBLIC_URL` for canonical redirect origins. The webhook endpoint at `POST /api/billing/webhook` verifies signatures with the raw request body (excluded from the global JSON parser in `app.ts`) and handles `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`. Customer + subscription IDs are persisted on `users.stripe_customer_id` / `users.stripe_subscription_id`.
+
+## Security & abuse controls
+
+- `app.set('trust proxy', true)` so `req.ip` reflects the real client IP behind the Replit edge.
+- In-memory rate limiter (`src/lib/rateLimit.ts`): `/api/contact` 5/hour/IP, `/api/auth/login` + `/api/auth/signup` 20/15min/IP. For multi-instance prod, swap with a Redis-backed store.
+- `DELETE /api/auth/account` runs `deleteUserCascade()` which transactionally removes flashcards, quiz questions, study sessions, quiz attempts, exam countdowns, study sets, folders, sessions, then the user row. Demo accounts (`@example.com`) are server-side protected.
+
 ## Routing
 
 Frontend lives at `/`, API at `/api/*`. Both pass through the workspace proxy.

@@ -25,8 +25,16 @@ app.use(
     },
   }),
 );
+// Trust the Replit edge proxy so req.ip reflects the real client IP for
+// rate-limiting purposes instead of the proxy's loopback address.
+app.set("trust proxy", true);
 app.use(cookieParser());
-app.use(express.json({ limit: "2mb" }));
+// Stripe webhook needs the raw request body to verify HMAC signatures, so it
+// must be excluded from the global JSON parser and handled inside its route.
+app.use((req, res, next) => {
+  if (req.path === "/api/billing/webhook") return next();
+  return express.json({ limit: "2mb" })(req, res, next);
+});
 app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);

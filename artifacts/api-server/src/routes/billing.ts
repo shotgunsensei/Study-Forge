@@ -1,14 +1,46 @@
-import { Router, type IRouter } from "express";
+import express, { Router, type IRouter, type Request } from "express";
 import { eq } from "drizzle-orm";
+import Stripe from "stripe";
 import { db, usersTable } from "@workspace/db";
 import { CreateCheckoutSessionBody } from "@workspace/api-zod";
 import { requireAuth } from "../lib/auth";
 import { planOf } from "../lib/plans";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
+const STRIPE_SECRET_KEY = process.env["STRIPE_SECRET_KEY"];
+const STRIPE_WEBHOOK_SECRET = process.env["STRIPE_WEBHOOK_SECRET"];
+const STRIPE_PRO_PRICE_ID = process.env["STRIPE_PRO_PRICE_ID"];
+const STRIPE_TUTOR_PRICE_ID = process.env["STRIPE_TUTOR_PRICE_ID"];
+
+const stripe = STRIPE_SECRET_KEY ? new Stripe(STRIPE_SECRET_KEY) : null;
+
 function isDemoMode(): boolean {
-  return !process.env.STRIPE_SECRET_KEY;
+  return !stripe || (!STRIPE_PRO_PRICE_ID && !STRIPE_TUTOR_PRICE_ID);
+}
+
+function priceIdFor(plan: string): string | undefined {
+  if (plan === "pro") return STRIPE_PRO_PRICE_ID;
+  if (plan === "tutor") return STRIPE_TUTOR_PRICE_ID;
+  return undefined;
+}
+
+function planForPrice(priceId: string | undefined): "pro" | "tutor" | null {
+  if (!priceId) return null;
+  if (priceId === STRIPE_PRO_PRICE_ID) return "pro";
+  if (priceId === STRIPE_TUTOR_PRICE_ID) return "tutor";
+  return null;
+}
+
+function originFor(req: Request): string {
+  // Prefer the canonical app origin so Stripe redirects can't be hijacked
+  // by spoofed Host headers.
+  const canonical = process.env["APP_PUBLIC_URL"];
+  if (canonical) return canonical.replace(/\/$/, "");
+  const proto = (req.headers["x-forwarded-proto"] as string)?.split(",")[0] ?? req.protocol;
+  const host = req.headers["x-forwarded-host"] ?? req.headers.host;
+  return `${proto}://${host}`;
 }
 
 router.get("/billing/status", requireAuth, async (req, res): Promise<void> => {
@@ -29,7 +61,6 @@ router.post("/billing/checkout", requireAuth, async (req, res): Promise<void> =>
     return;
   }
   if (isDemoMode()) {
-    // In demo mode, instantly upgrade the user so the full product surface is usable.
     await db
       .update(usersTable)
       .set({ plan: parsed.data.plan })
@@ -42,18 +73,40 @@ router.post("/billing/checkout", requireAuth, async (req, res): Promise<void> =>
     });
     return;
   }
-  res.json({
-    url: null,
-    demoMode: false,
-    message: "Stripe checkout would open here in production.",
-    plan: parsed.data.plan,
-  });
+  const priceId = priceIdFor(parsed.data.plan);
+  if (!priceId) {
+    res.status(400).json({ error: `No Stripe price configured for ${parsed.data.plan}` });
+    return;
+  }
+  const origin = originFor(req);
+  try {
+    const session = await stripe!.checkout.sessions.create({
+      mode: "subscription",
+      ...(user.stripeCustomerId ? { customer: user.stripeCustomerId } : { customer_email: user.email }),
+      client_reference_id: String(user.id),
+      line_items: [{ price: priceId, quantity: 1 }],
+      success_url: `${origin}/app/account?upgraded=1`,
+      cancel_url: `${origin}/pricing?canceled=1`,
+      metadata: { userId: String(user.id), plan: parsed.data.plan },
+      subscription_data: {
+        metadata: { userId: String(user.id), plan: parsed.data.plan },
+      },
+    });
+    res.json({
+      url: session.url,
+      demoMode: false,
+      message: "Redirecting to Stripe Checkout",
+      plan: parsed.data.plan,
+    });
+  } catch (err) {
+    req.log.error({ err }, "Stripe checkout session creation failed");
+    res.status(500).json({ error: "Failed to start checkout" });
+  }
 });
 
 router.post("/billing/portal", requireAuth, async (req, res): Promise<void> => {
   const user = req.user!;
   if (isDemoMode()) {
-    // In demo mode, downgrade the user back to free as a "cancel".
     await db
       .update(usersTable)
       .set({ plan: "free" })
@@ -66,12 +119,101 @@ router.post("/billing/portal", requireAuth, async (req, res): Promise<void> => {
     });
     return;
   }
-  res.json({
-    url: null,
-    demoMode: false,
-    message: "Stripe billing portal would open here in production.",
-    plan: planOf(user),
-  });
+  if (!user.stripeCustomerId) {
+    res.status(400).json({ error: "No Stripe customer on file. Complete a checkout first." });
+    return;
+  }
+  try {
+    const portalSession = await stripe!.billingPortal.sessions.create({
+      customer: user.stripeCustomerId,
+      return_url: `${originFor(req)}/app/account`,
+    });
+    res.json({
+      url: portalSession.url,
+      demoMode: false,
+      message: "Opening billing portal",
+      plan: planOf(user),
+    });
+  } catch (err) {
+    req.log.error({ err }, "Stripe billing portal session failed");
+    res.status(500).json({ error: "Failed to open billing portal" });
+  }
 });
+
+// Stripe webhook — must receive the raw body to verify the signature.
+// Mounted with `express.raw()` instead of the default JSON parser.
+router.post(
+  "/billing/webhook",
+  express.raw({ type: "application/json" }),
+  async (req, res): Promise<void> => {
+    if (!stripe || !STRIPE_WEBHOOK_SECRET) {
+      res.status(503).json({ error: "Webhook not configured" });
+      return;
+    }
+    const sig = req.headers["stripe-signature"];
+    if (!sig || typeof sig !== "string") {
+      res.status(400).json({ error: "Missing signature" });
+      return;
+    }
+    let event: Stripe.Event;
+    try {
+      event = stripe.webhooks.constructEvent(req.body, sig, STRIPE_WEBHOOK_SECRET);
+    } catch (err) {
+      logger.warn({ err }, "Stripe webhook signature verification failed");
+      res.status(400).json({ error: "Invalid signature" });
+      return;
+    }
+
+    try {
+      switch (event.type) {
+        case "checkout.session.completed": {
+          const session = event.data.object as Stripe.Checkout.Session;
+          const userId = Number(session.client_reference_id);
+          const plan = (session.metadata?.["plan"] ?? "pro") as "pro" | "tutor";
+          if (Number.isFinite(userId)) {
+            await db
+              .update(usersTable)
+              .set({
+                plan,
+                stripeCustomerId: typeof session.customer === "string" ? session.customer : null,
+                stripeSubscriptionId:
+                  typeof session.subscription === "string" ? session.subscription : null,
+              })
+              .where(eq(usersTable.id, userId));
+          }
+          break;
+        }
+        case "customer.subscription.updated": {
+          const sub = event.data.object as Stripe.Subscription;
+          const priceId = sub.items.data[0]?.price.id;
+          const plan = planForPrice(priceId);
+          const userId = Number(sub.metadata?.["userId"]);
+          if (plan && Number.isFinite(userId)) {
+            await db.update(usersTable).set({ plan }).where(eq(usersTable.id, userId));
+          }
+          break;
+        }
+        case "customer.subscription.deleted": {
+          const sub = event.data.object as Stripe.Subscription;
+          const userId = Number(sub.metadata?.["userId"]);
+          if (Number.isFinite(userId)) {
+            await db
+              .update(usersTable)
+              .set({ plan: "free", stripeSubscriptionId: null })
+              .where(eq(usersTable.id, userId));
+          }
+          break;
+        }
+        default:
+          // Other events are acknowledged but not acted on.
+          break;
+      }
+      res.json({ received: true });
+    } catch (err) {
+      logger.error({ err, eventType: event.type }, "Stripe webhook handler failed");
+      res.status(500).json({ error: "Webhook handler failed" });
+    }
+  },
+);
 
 export default router;

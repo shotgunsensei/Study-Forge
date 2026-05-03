@@ -9,6 +9,7 @@ import examCountdownsRouter from "./examCountdowns";
 import templatesRouter from "./templates";
 import billingRouter from "./billing";
 import adminRouter from "./admin";
+import contactRouter from "./contact";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use(examCountdownsRouter);
 router.use(templatesRouter);
 router.use(billingRouter);
 router.use(adminRouter);
+router.use(contactRouter);
 
 export default router;
