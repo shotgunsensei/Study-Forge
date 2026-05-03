@@ -3,7 +3,7 @@ import { useDocumentMeta } from "@/hooks/use-document-meta";
 import { useRoute, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Download, Printer } from "lucide-react";
+import { ArrowLeft, Download, Printer, Flame } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function StudySetReview() {
@@ -96,12 +96,12 @@ export default function StudySetReview() {
             {set.reviewSheet.cramSection && set.reviewSheet.cramSection.length > 0 && (
               <section className="bg-accent/5 border border-accent/20 p-6 rounded-xl break-inside-avoid mt-12">
                 <h2 className="text-xl font-bold mb-4 text-accent flex items-center gap-2">
-                  <span className="text-2xl">⚡</span> Last Minute Cram
+                  <Flame className="h-5 w-5" /> Last Minute Cram
                 </h2>
                 <ul className="space-y-3">
                   {set.reviewSheet.cramSection.map((bullet, j) => (
                     <li key={j} className="flex gap-3 text-foreground font-medium">
-                      <span className="text-accent mt-1">→</span>
+                      <span className="text-accent mt-1 font-bold">›</span>
                       <span>{bullet}</span>
                     </li>
                   ))}

@@ -46,3 +46,17 @@ Frontend lives at `/`, API at `/api/*`. Both pass through the workspace proxy.
 - `pnpm --filter @workspace/api-spec run codegen` — regen client/zod after spec changes
 - `pnpm --filter @workspace/db run push` — apply schema changes
 - `pnpm -w run typecheck` — full typecheck across workspace
+- `PORT=3000 BASE_PATH=/app pnpm --filter @workspace/studyforge run build` — production build
+
+## Launch Polish (May 2026)
+
+- Landing page rebuilt with How-it-works, testimonials, FAQ, and final CTA sections.
+- Pricing page now has accessible feature-comparison table (caption, scope, sr-only labels), FAQ, and dynamic "Current Plan" badge.
+- Limit modal redesigned with feature-aware copy and Pro benefits list.
+- Dashboard onboarding card for first-time users; richer empty states.
+- Account page surfaces usage stats (sets / quizzes / cards) alongside plan status.
+- 404 page now uses theme tokens, has a friendly icon, and links back to home/dashboard.
+- Sidebar uses distinct icons (LayoutDashboard / Library / Calendar / Settings).
+- Login & signup forms have autoComplete attributes; signup enforces 8-char password.
+- Exam date input uses local-date min (TZ-safe).
+- All UI emoji removed (review sheet uses Flame lucide icon).

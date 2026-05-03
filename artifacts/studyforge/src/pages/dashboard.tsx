@@ -3,7 +3,7 @@ import { useDocumentMeta } from "@/hooks/use-document-meta";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-import { Brain, FileText, Target, Plus, AlertCircle } from "lucide-react";
+import { Brain, FileText, Target, Plus, AlertCircle, Sparkles, ArrowRight, BookOpen, Calendar } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Dashboard() {
@@ -32,12 +32,16 @@ export default function Dashboard() {
     );
   }
 
+  const isNewUser = dashboard.studySetsCount === 0;
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground">Welcome back. Here's your study overview.</p>
+          <p className="text-muted-foreground">
+            {isNewUser ? "Welcome to StudyForge. Let's get your first set going." : "Welcome back. Here's your study overview."}
+          </p>
         </div>
         <Link href="/sets/new">
           <Button>
@@ -47,7 +51,34 @@ export default function Dashboard() {
         </Link>
       </div>
 
-      {dashboard.plan === "free" && (
+      {isNewUser && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="p-6">
+            <div className="flex items-start gap-4">
+              <div className="hidden sm:flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
+                <Sparkles className="h-5 w-5" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold mb-1">Get started in 3 steps</h3>
+                <p className="text-sm text-muted-foreground mb-4">Build your first study set and unlock the full StudyForge experience.</p>
+                <ol className="space-y-2 text-sm mb-4">
+                  <li className="flex items-center gap-2"><span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/20 text-primary text-xs font-bold">1</span> Create a study set from your notes</li>
+                  <li className="flex items-center gap-2"><span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/20 text-primary text-xs font-bold">2</span> Practice flashcards & take a quiz</li>
+                  <li className="flex items-center gap-2"><span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/20 text-primary text-xs font-bold">3</span> Add an exam date for a personalized plan</li>
+                </ol>
+                <Link href="/sets/new">
+                  <Button size="sm">
+                    Create your first set
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {dashboard.plan === "free" && !isNewUser && (
         <div className="bg-accent/10 border border-accent/20 p-4 rounded-xl flex items-center justify-between">
           <div>
             <h3 className="font-semibold text-accent">Upgrade to Pro</h3>
@@ -98,10 +129,17 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="space-y-4">
-          <h2 className="text-xl font-bold">Recent Study Sets</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold">Recent Study Sets</h2>
+            {dashboard.recentStudySets.length > 0 && (
+              <Link href="/sets" className="text-sm text-muted-foreground hover:text-primary transition-colors">View all</Link>
+            )}
+          </div>
           {dashboard.recentStudySets.length === 0 ? (
-            <Card className="p-8 text-center bg-muted/20">
-              <p className="text-muted-foreground mb-4">You haven't created any study sets yet.</p>
+            <Card className="p-8 text-center bg-muted/20 border-dashed">
+              <BookOpen className="mx-auto h-10 w-10 text-muted-foreground/60 mb-3" />
+              <p className="font-medium mb-1">No study sets yet</p>
+              <p className="text-sm text-muted-foreground mb-4">Paste your notes and we'll do the rest.</p>
               <Link href="/sets/new">
                 <Button variant="outline">Create your first set</Button>
               </Link>
@@ -130,8 +168,10 @@ export default function Dashboard() {
         <div className="space-y-4">
           <h2 className="text-xl font-bold">Today's Study Plan</h2>
           {dashboard.todaySessions.length === 0 ? (
-            <Card className="p-8 text-center bg-muted/20">
-              <p className="text-muted-foreground">No study sessions scheduled for today.</p>
+            <Card className="p-8 text-center bg-muted/20 border-dashed">
+              <Calendar className="mx-auto h-10 w-10 text-muted-foreground/60 mb-3" />
+              <p className="font-medium mb-1">Nothing scheduled today</p>
+              <p className="text-sm text-muted-foreground">Open a study set to generate a plan paced to your exam date.</p>
             </Card>
           ) : (
             <div className="space-y-3">

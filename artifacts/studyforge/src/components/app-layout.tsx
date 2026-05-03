@@ -1,7 +1,7 @@
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useLogout, useGetBillingStatus } from "@workspace/api-client-react";
-import { BookOpen, Calendar, Settings, Shield, LogOut, Menu } from "lucide-react";
+import { BookOpen, Calendar, Settings, Shield, LogOut, Menu, LayoutDashboard, Library } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -28,8 +28,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   };
 
   const navItems = [
-    { href: "/", label: "Dashboard", icon: BookOpen },
-    { href: "/sets", label: "Study Sets", icon: BookOpen },
+    { href: "/", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/sets", label: "Study Sets", icon: Library },
     { href: "/exams", label: "Exams", icon: Calendar },
     { href: "/account", label: "Account", icon: Settings },
     ...(user.role === "admin" ? [{ href: "/admin", label: "Admin", icon: Shield }] : []),

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Calendar, Trash2, Plus, Clock, AlertTriangle } from "lucide-react";
+import { Calendar, Trash2, Plus, Clock } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -29,8 +29,24 @@ export default function Exams() {
 
   const [limitModal, setLimitModal] = useState({ isOpen: false, feature: "", currentPlan: "", upgradeTo: "" });
 
+  const todayIso = (() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  })();
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!examName.trim()) {
+      toast.error("Please enter an exam name");
+      return;
+    }
+    if (examDate < todayIso) {
+      toast.error("Exam date must be today or later");
+      return;
+    }
     try {
       await createExam.mutateAsync({ data: { examName, examDate } });
       queryClient.invalidateQueries({ queryKey: getListExamCountdownsQueryKey() });
@@ -98,7 +114,7 @@ export default function Exams() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="examDate">Date</Label>
-                <Input id="examDate" type="date" required value={examDate} onChange={e => setExamDate(e.target.value)} />
+                <Input id="examDate" type="date" required min={todayIso} value={examDate} onChange={e => setExamDate(e.target.value)} />
               </div>
               <Button type="submit" className="w-full" disabled={createExam.isPending}>
                 Save Exam

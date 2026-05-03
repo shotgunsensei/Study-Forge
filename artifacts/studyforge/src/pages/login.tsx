@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useLogin } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
-import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,7 +14,6 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const login = useLogin();
   const { refresh } = useAuth();
-  const [, setLocation] = useLocation();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,11 +43,11 @@ export default function Login() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              <Input id="email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+              <Input id="password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
             </div>
             <Button type="submit" className="w-full" disabled={login.isPending}>
               {login.isPending ? "Logging in..." : "Login"}
@@ -66,11 +64,16 @@ export default function Login() {
               </div>
             </div>
             <div className="grid grid-cols-3 gap-2 mt-4">
-              <Button variant="outline" size="sm" onClick={() => handleDemo("student@example.com")}>Student</Button>
-              <Button variant="outline" size="sm" onClick={() => handleDemo("tutor@example.com")}>Tutor</Button>
-              <Button variant="outline" size="sm" onClick={() => handleDemo("admin@example.com")}>Admin</Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => handleDemo("student@example.com")}>Student</Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => handleDemo("tutor@example.com")}>Tutor</Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => handleDemo("admin@example.com")}>Admin</Button>
             </div>
+            <p className="mt-3 text-center text-xs text-muted-foreground">Click a role to fill credentials, then press Login.</p>
           </div>
+          <p className="mt-6 text-center text-sm text-muted-foreground">
+            Don't have an account?{" "}
+            <a href="/signup" className="text-primary hover:underline font-medium">Sign up</a>
+          </p>
         </CardContent>
       </Card>
     </div>

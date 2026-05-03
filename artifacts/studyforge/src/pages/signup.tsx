@@ -20,11 +20,19 @@ export default function Signup() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (password.length < 8) {
+      toast.error("Password must be at least 8 characters");
+      return;
+    }
+    if (name.trim().length < 2) {
+      toast.error("Please enter your name");
+      return;
+    }
     try {
-      await signup.mutateAsync({ data: { email, password, name } });
+      await signup.mutateAsync({ data: { email, password, name: name.trim() } });
       refresh();
       window.location.href = "/app";
-      toast.success("Account created successfully");
+      toast.success("Account created. Welcome to StudyForge!");
     } catch (err: any) {
       toast.error(err?.data?.error || "Failed to create account");
     }
@@ -41,19 +49,24 @@ export default function Signup() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name">Name</Label>
-              <Input id="name" type="text" value={name} onChange={(e) => setName(e.target.value)} required />
+              <Input id="name" type="text" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} required />
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              <Input id="email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+              <Input id="password" type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} />
+              <p className="text-xs text-muted-foreground">At least 8 characters.</p>
             </div>
             <Button type="submit" className="w-full" disabled={signup.isPending}>
               {signup.isPending ? "Creating account..." : "Sign Up"}
             </Button>
+            <p className="text-center text-sm text-muted-foreground">
+              Already have an account?{" "}
+              <a href="/login" className="text-primary hover:underline font-medium">Log in</a>
+            </p>
           </form>
         </CardContent>
       </Card>

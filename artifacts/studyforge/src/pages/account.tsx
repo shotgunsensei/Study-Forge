@@ -1,19 +1,19 @@
-import { useGetBillingStatus, useCreateBillingPortal, useLogout } from "@workspace/api-client-react";
+import { useGetBillingStatus, useCreateBillingPortal, useLogout, useGetDashboard } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useDocumentMeta } from "@/hooks/use-document-meta";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Link, useLocation } from "wouter";
-import { Loader2, Settings, User, CreditCard } from "lucide-react";
+import { Link } from "wouter";
+import { Loader2, User, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 
 export default function Account() {
   useDocumentMeta("Account Settings");
   const { user, refresh } = useAuth();
   const { data: billing, isLoading: billingLoading } = useGetBillingStatus();
+  const { data: dashboard } = useGetDashboard();
   const portal = useCreateBillingPortal();
   const logout = useLogout();
-  const [, setLocation] = useLocation();
 
   const handlePortal = async () => {
     try {
@@ -31,7 +31,7 @@ export default function Account() {
   const handleLogout = async () => {
     await logout.mutateAsync();
     refresh();
-    setLocation("/");
+    window.location.href = "/";
   };
 
   if (!user) return null;
@@ -103,6 +103,28 @@ export default function Account() {
                   </div>
                 </div>
               </div>
+              {dashboard && (
+                <div className="grid grid-cols-3 gap-4 pt-4 border-t border-border">
+                  <div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Study Sets</div>
+                    <div className="text-lg font-semibold">
+                      {dashboard.planUsage.studySetsUsed}
+                      <span className="text-sm text-muted-foreground font-normal"> / {dashboard.planUsage.studySetsLimit ?? "∞"}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Quizzes / mo</div>
+                    <div className="text-lg font-semibold">
+                      {dashboard.planUsage.quizAttemptsThisMonth}
+                      <span className="text-sm text-muted-foreground font-normal"> / {dashboard.planUsage.quizAttemptsLimit ?? "∞"}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Total Cards</div>
+                    <div className="text-lg font-semibold">{dashboard.flashcardsCount}</div>
+                  </div>
+                </div>
+              )}
             </>
           ) : (
             <div className="text-destructive">Failed to load billing status</div>
