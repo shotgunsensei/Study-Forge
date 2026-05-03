@@ -1,0 +1,480 @@
+Build a complete production-ready SaaS web app called StudyForge AI.
+
+Product concept:
+StudyForge AI helps students, parents, tutors, homeschoolers, certification candidates, and professionals turn notes into structured study materials.
+
+Core promise:
+“Turn your notes into flashcards, quizzes, review sheets, and a study plan in minutes.”
+
+This must be a fully working web app, not a landing page only.
+
+Use the fastest reliable stack for Replit:
+- Next.js App Router or full-stack React if easier
+- TypeScript if practical
+- Tailwind CSS
+- PostgreSQL, SQLite, or Replit-compatible database
+- Prisma or simple query layer
+- Stripe subscriptions
+- Auth system with email/password or demo-auth fallback
+- Responsive mobile-first layout
+
+Important:
+If API keys are missing, the app must still work in demo mode using local deterministic generation logic.
+Do not leave broken pages, dead buttons, missing imports, or fake features that look live.
+Do not stop until the app installs, builds, and renders successfully.
+
+Branding:
+Product name: StudyForge AI
+Visual style:
+- Clean modern SaaS
+- Calm but premium
+- Dark mode first with optional light mode if easy
+- Accent colors: blue, violet, white, charcoal
+- Friendly but professional
+- Should feel trustworthy for students, parents, tutors, and adult learners
+
+Primary users:
+- High school students
+- College students
+- Certification learners
+- Nursing/medical students
+- IT certification candidates
+- Homeschool families
+- Tutors
+- Language learners
+- Professionals studying for exams
+
+Core pages/routes:
+1. Landing page
+2. Pricing page
+3. Signup/login page
+4. Dashboard
+5. Notes upload / paste page
+6. Study set detail page
+7. Flashcards page
+8. Quiz page
+9. Review sheet page
+10. Study planner page
+11. Exam countdown page
+12. Saved study sets page
+13. Account/billing page
+14. Admin panel
+15. Terms of Service
+16. Privacy Policy
+17. Contact page
+
+Landing page requirements:
+- Strong headline
+- Clear subheadline
+- Primary CTA: “Create Your First Study Set”
+- Secondary CTA: “View Demo”
+- Feature cards
+- How it works section
+- Use cases section
+- Pricing preview
+- FAQ
+- Final CTA
+- Footer
+
+Suggested landing headline:
+“Your Notes, Forged Into Study Weapons.”
+
+Suggested subheadline:
+“Paste class notes, PDFs, outlines, or rough study material and StudyForge AI turns them into flashcards, quizzes, review sheets, and a personalized study plan.”
+
+Pricing model:
+Free:
+- 3 study sets
+- 25 flashcards per set
+- 3 quizzes per month
+- Basic review sheets
+- Basic study planner
+
+Pro: $9.99/month
+- Unlimited study sets
+- Unlimited flashcards
+- Unlimited quizzes
+- Advanced review sheets
+- Exam countdowns
+- Spaced repetition schedule
+- Export to PDF/Markdown/TXT
+- Priority study plan generation
+
+Tutor: $29/month
+- Everything in Pro
+- Student groups
+- Assign study sets
+- Shared study links
+- Tutor dashboard
+- Multi-student progress view
+- Commercial tutoring use
+
+Database models:
+- users
+- subscriptions
+- study_sets
+- notes
+- flashcards
+- quizzes
+- quiz_questions
+- quiz_attempts
+- review_sheets
+- study_plans
+- study_sessions
+- exam_countdowns
+- folders
+- tutor_groups
+- tutor_students
+- admin_settings
+
+Environment variables:
+- DATABASE_URL
+- NEXT_PUBLIC_APP_URL
+- STRIPE_SECRET_KEY
+- STRIPE_WEBHOOK_SECRET
+- NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+- STRIPE_PRO_PRICE_ID
+- STRIPE_TUTOR_PRICE_ID
+- OPENAI_API_KEY optional
+- DEMO_MODE optional
+
+App behavior:
+Users can create a study set by entering:
+- Title
+- Subject
+- Class/course
+- Exam date optional
+- Difficulty level
+- Learning goal
+- Notes pasted into a text area
+
+The app then generates:
+1. Study summary
+2. Key terms
+3. Flashcards
+4. Multiple-choice quiz
+5. Short-answer quiz
+6. Review sheet
+7. Study plan
+8. Weak-area recommendations
+9. Exam countdown if date is provided
+
+Generation requirements:
+If OPENAI_API_KEY exists, structure the system so AI generation can be used.
+If OPENAI_API_KEY does not exist, use local deterministic generation so the app still works.
+
+Local generation should:
+- Extract important sentences
+- Detect repeated terms
+- Create simple question/answer flashcards
+- Generate multiple-choice questions from key sentences
+- Generate short-answer questions
+- Build a review sheet with headings
+- Create a study schedule based on exam date or default 7-day plan
+- Provide a study quality score
+
+Flashcard feature:
+- Flip card interaction
+- Next/previous buttons
+- Mark as known/needs review
+- Progress counter
+- Shuffle mode
+- Keyboard-friendly controls if possible
+- Mobile-friendly layout
+
+Quiz feature:
+- Multiple-choice quiz mode
+- Short-answer quiz mode
+- Score results
+- Show correct answers
+- Save quiz attempts
+- Show improvement over time
+- Explain weak areas using deterministic logic if no AI key exists
+
+Review sheet feature:
+- Clean structured review sheet
+- Key concepts
+- Definitions
+- Important facts
+- Practice questions
+- Last-minute cram section
+- Export TXT
+- Export Markdown
+- PDF export if practical
+
+Study planner feature:
+- Auto-generate study sessions
+- Daily checklist
+- Estimated time per session
+- Priority topics
+- Completed/not completed status
+- Spaced repetition reminders inside the app
+- Calendar-style view if practical
+
+Exam countdown feature:
+- Exam name
+- Exam date
+- Days remaining
+- Progress tracker
+- Recommended daily study load
+- Risk status:
+  - On track
+  - Needs attention
+  - Cram mode
+
+Dashboard requirements:
+Dashboard should show:
+- Study sets count
+- Upcoming exams
+- Today’s study tasks
+- Recent study sets
+- Quiz performance
+- Weak areas
+- Upgrade banner for Free users
+- Quick action buttons:
+  - Create Study Set
+  - Start Flashcards
+  - Take Quiz
+  - View Planner
+
+Saved study sets:
+- List/grid view
+- Search
+- Filter by subject
+- Sort by recently updated
+- Create folder
+- Move study set to folder
+- Delete/archive study set
+- Duplicate study set
+
+Subscription gating:
+Free:
+- Max 3 study sets
+- Max 25 flashcards per study set
+- Max 3 quiz attempts/month
+- Basic exports only
+
+Pro:
+- Unlimited study sets
+- Unlimited flashcards
+- Unlimited quiz attempts
+- Full exports
+- Exam countdowns
+- Advanced planner
+
+Tutor:
+- Everything in Pro
+- Tutor groups
+- Assignments
+- Shared links
+- Student progress dashboard
+
+When a user hits a limit:
+- Show clean upgrade modal
+- Explain exactly what is locked
+- Provide upgrade CTA
+- Do not crash
+- Do not silently fail
+
+Stripe integration:
+Implement:
+- Checkout session API route
+- Billing portal API route
+- Stripe webhook API route
+- Subscription status storage
+- Price ID mapping for Pro and Tutor
+- Plan badge in account page
+- Upgrade buttons on pricing page
+- Manage billing button
+
+Webhook events:
+- checkout.session.completed
+- customer.subscription.updated
+- customer.subscription.deleted
+- invoice.payment_succeeded
+- invoice.payment_failed
+
+If Stripe keys are missing:
+- App should run in demo billing mode
+- Pricing buttons should show a clear demo message
+- Do not break the app
+
+Auth:
+Implement working auth if practical.
+If auth is complex in Replit, implement demo auth with:
+- Demo student account
+- Demo tutor account
+- Demo admin account
+
+Demo accounts:
+Student:
+email: student@example.com
+password: demo123
+
+Tutor:
+email: tutor@example.com
+password: demo123
+
+Admin:
+email: admin@example.com
+password: demo123
+
+Admin panel:
+Admin can view:
+- Users
+- Study sets
+- Subscription tiers
+- Quiz attempts
+- Usage counts
+- Demo mode status
+- App stats
+
+Admin can:
+- Create sample study templates
+- Edit featured subjects
+- Toggle demo data
+- View system health
+
+Seed data:
+Create useful demo data for:
+- Biology
+- Algebra
+- World History
+- Spanish Vocabulary
+- CompTIA A+
+- Nursing Fundamentals
+- Psychology
+- Literature
+
+Each sample study set should include:
+- Notes
+- Flashcards
+- Quiz
+- Review sheet
+- Study plan
+
+Study templates:
+Add templates for:
+- Vocabulary memorization
+- Chapter review
+- Certification exam prep
+- Medical terminology
+- Math formula practice
+- History timeline review
+- Language learning
+- Science test prep
+- Literature analysis
+- Final exam cram plan
+
+Export features:
+Users should be able to export:
+- Flashcards as TXT
+- Flashcards as Markdown
+- Review sheet as Markdown
+- Quiz as Markdown
+- Study plan as Markdown
+- Full study set as JSON
+
+Polish:
+Add:
+- Loading states
+- Empty states
+- Error states
+- Toast notifications
+- Form validation
+- Confirmation dialogs for delete
+- Helpful tooltips
+- Mobile navigation
+- Footer navigation
+- Clean account menu
+- Demo mode banner when applicable
+
+SEO:
+Add:
+- Page titles
+- Meta descriptions
+- OpenGraph metadata
+- robots.txt
+- sitemap if practical
+
+Legal:
+Create:
+- Terms of Service page
+- Privacy Policy page
+- Contact page
+- Refund/subscription policy section
+
+Documentation:
+Create:
+- README.md
+- DEPLOYMENT.md
+- ENVIRONMENT_VARIABLES.md
+- TESTING_CHECKLIST.md
+- STRIPE_SETUP.md
+- PRODUCT_ROADMAP.md
+- MONETIZATION_PLAN.md
+
+README must include:
+- Product overview
+- Tech stack
+- How to run in Replit
+- Environment variables
+- Demo mode behavior
+- Stripe setup
+- Database setup
+- Deployment steps
+- Known limitations
+
+MONETIZATION_PLAN.md must include:
+- Target audience
+- Pricing strategy
+- Conversion funnel
+- First 10 customer acquisition ideas
+- Suggested ad copy
+- Suggested landing page experiments
+- Future premium features
+
+Quality requirements:
+- No broken routes
+- No missing imports
+- No dead buttons
+- No placeholder pages
+- No console-breaking errors
+- No unfinished navigation
+- Mobile layout must work
+- Forms must validate inputs
+- Main product flow must work from start to finish:
+  1. User signs in or uses demo account
+  2. User creates study set
+  3. User pastes notes
+  4. App generates study materials
+  5. User reviews flashcards
+  6. User takes quiz
+  7. User views review sheet
+  8. User views study plan
+  9. User exports content
+  10. User sees upgrade path
+
+Build process:
+After creating the app:
+1. Install dependencies
+2. Run lint if available
+3. Run typecheck if available
+4. Run tests if available
+5. Run build
+6. Start the app
+7. Fix all errors
+8. Repeat until successful
+
+Final response:
+When finished, provide:
+- What was built
+- Main routes
+- Demo login info
+- Environment variables needed
+- Commands run
+- Whether build passed
+- Known limitations
+- Recommended next improvements
+
+Begin by creating the complete app structure, then implement the full product.
